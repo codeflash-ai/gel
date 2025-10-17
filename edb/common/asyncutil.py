@@ -120,16 +120,11 @@ async def debounce[T](
             # If we aren't current waiting, and we got a
             # notification recently, arrange to wait some before
             # sending it.
-            if (
-                target_time is None
-                and t - last_signal < DELAY_AMT
-            ):
+            if target_time is None and t - last_signal < DELAY_AMT:
                 target_time = t + DELAY_AMT
             # If we were already waiting, wait a little longer, though
             # not longer than MAX_WAIT.
-            elif (
-                target_time is not None
-            ):
+            elif target_time is not None:
                 target_time = min(
                     max(t + DELAY_AMT, target_time),
                     last_signal + MAX_WAIT,
@@ -275,9 +270,23 @@ ExclusiveTaskDecorator = Callable[
 def _exclusive_task(
     handler: HandlerFunction | HandlerMethod, *, slot: str | None
 ) -> ExclusiveTask | ExclusiveTaskProperty:
-    sig = inspect.signature(handler)
-    params = list(sig.parameters.values())
-    if len(params) == 0:
+    cache_attr = '__edb_exclusive_task_siginfo__'
+    siginfo = getattr(handler, cache_attr, None)
+    if siginfo is None:
+        sig = inspect.signature(handler)
+        params = list(sig.parameters.values())
+        if len(params) == 0:
+            siginfo = (0, None)
+        elif len(params) == 1:
+            siginfo = (1, params[0].kind)
+        else:
+            siginfo = (len(params), tuple(p.kind for p in params))
+        try:
+            setattr(handler, cache_attr, siginfo)
+        except Exception:
+            pass
+
+    if siginfo[0] == 0:
         handler = cast(HandlerFunction, handler)
         if slot is not None:
             warnings.warn(
@@ -285,7 +294,7 @@ def _exclusive_task(
                 stacklevel=2,
             )
         return ExclusiveTask(handler)
-    elif len(params) == 1 and params[0].kind in (
+    elif siginfo[0] == 1 and siginfo[1] in (
         inspect.Parameter.POSITIONAL_ONLY,
         inspect.Parameter.POSITIONAL_OR_KEYWORD,
     ):
