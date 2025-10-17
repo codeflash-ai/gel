@@ -160,24 +160,17 @@ def get_all_proper_top_level_paths(e: Expr, dbschema: e.TcCtx) -> list[Expr]:
 
 
 def common_longest_path_prefix(e1: Expr, e2: Expr) -> Optional[Expr]:
-    pending = None
+    pp1 = all_prefixes_of_a_path(e1)
+    pp2 = all_prefixes_of_a_path(e2)
+    min_len = min(len(pp1), len(pp2))
 
-    def find_longest(pp1: list[Expr], pp2: list[Expr]) -> Optional[Expr]:
-        nonlocal pending
-        match (pp1, pp2):
-            case ([], []):
-                return pending
-            case ([], _):
-                return pending
-            case (_, []):
-                return pending
-            case ([p1this, *p1next], [p2this, *p2next]):
-                if p1this == p2this:
-                    pending = p1this
-                return find_longest([*p1next], [*p2next])
-        raise ValueError("should not happen")
-
-    return find_longest(all_prefixes_of_a_path(e1), all_prefixes_of_a_path(e2))
+    last_common: Optional[Expr] = None
+    for i in range(min_len):
+        if pp1[i] == pp2[i]:
+            last_common = pp1[i]
+        else:
+            break
+    return last_common
 
 
 def common_longest_path_prefix_in_set(test_set: list[Expr]) -> list[Expr]:
@@ -364,9 +357,7 @@ def select_hoist(expr: Expr, dbschema: e.TcCtx) -> Expr:
 
             post_process_transform = post_processing
         case _:
-            after_e = iterative_subst_expr_for_expr(
-                fresh_vars, top_paths, expr
-            )
+            after_e = iterative_subst_expr_for_expr(fresh_vars, top_paths, expr)
             inner_e = sub_select_hoist(after_e, dbschema)
 
             def id_transform(x):
