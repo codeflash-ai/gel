@@ -23,6 +23,16 @@ from typing import Any, NamedTuple
 import enum
 import re
 
+_PRE_L_TO_STAGE = {
+    'a': 'ALPHA',
+    'alpha': 'ALPHA',
+    'b': 'BETA',
+    'beta': 'BETA',
+    'c': 'RC',
+    'rc': 'RC',
+    'dev': 'DEV',
+}
+
 
 VERSION_PATTERN = re.compile(r"""
     ^
@@ -67,35 +77,38 @@ def parse_version(ver: str) -> Version:
     v = VERSION_PATTERN.match(ver)
     if v is None:
         raise ValueError(f'cannot parse version: {ver}')
-    local: list[str] = []
-    if v.group('pre'):
+    # Parse pre-release
+    pre = v.group('pre')
+    if pre:
         pre_l = v.group('pre_l')
-        if pre_l in {'a', 'alpha'}:
-            stage = VersionStage.ALPHA
-        elif pre_l in {'b', 'beta'}:
-            stage = VersionStage.BETA
-        elif pre_l in {'c', 'rc'}:
-            stage = VersionStage.RC
-        elif pre_l in {'dev'}:
-            stage = VersionStage.DEV
-        else:
+        try:
+            stage = getattr(VersionStage, _PRE_L_TO_STAGE[pre_l])
+        except KeyError:
             raise ValueError(f'cannot determine release stage from {ver}')
-
         stage_no = int(v.group('pre_n'))
     else:
         stage = VersionStage.FINAL
         stage_no = 0
-    if v.group('local'):
-        local.extend(v.group('local').split('.'))
 
-    release = [int(r) for r in v.group('release').split('.')]
+    local_str = v.group('local')
+    if local_str:
+        # Use tuple(str.split('.')) directly for memory savings and speed
+        local = tuple(local_str.split('.'))
+    else:
+        local = ()
+
+    # Avoid list comp -- use tuple gen for less overhead
+    release_split = v.group('release').split('.')
+    # Only major and minor are used, so avoid unnecessary parsing/storage
+    major = int(release_split[0])
+    minor = int(release_split[1])
 
     return Version(
-        major=release[0],
-        minor=release[1],
+        major=major,
+        minor=minor,
         stage=stage,
         stage_no=stage_no,
-        local=tuple(local),
+        local=local,
     )
 
 
