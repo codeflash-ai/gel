@@ -69,7 +69,11 @@ class Context:
     and ``depth`` - recursion depth"""
 
     def __init__(self, trim=True, kwargs=None):
-        self.reset()
+        # Avoid double init; set attributes directly
+        self.memo = set()
+        self.keep_alive = []
+        self.level = 0
+        self.run_cnt = 0
         self.trim = trim
         self.kwargs = kwargs or {}
         if settings.censor_sensitive_vars:
@@ -81,8 +85,15 @@ class Context:
         return key in self.censor_set
 
     def reset(self):
-        self.memo = set()
-        self.keep_alive = []
+        # Clear set/list if already present to reduce allocations
+        if hasattr(self, "memo"):
+            self.memo.clear()
+        else:
+            self.memo = set()
+        if hasattr(self, "keep_alive"):
+            self.keep_alive.clear()
+        else:
+            self.keep_alive = []
         self.level = 0
         self.run_cnt = 0
 
@@ -100,10 +111,13 @@ def serialize(obj, *, ctx):
             hasattr(tobj, '__dataclass_fields__')):
         sr = serialize_dataclass
 
-    ctx.level += 1
-    ctx.run_cnt += 1
+    ctx_level = ctx.level + 1
+    ctx_run_cnt = ctx.run_cnt + 1
+    ctx.level = ctx_level
+    ctx.run_cnt = ctx_run_cnt
+
     try:
-        if ctx.level >= OVERFLOW_BARIER or ctx.run_cnt >= RUN_OVERFLOW_BARIER:
+        if ctx_level >= OVERFLOW_BARIER or ctx_run_cnt >= RUN_OVERFLOW_BARIER:
             return elements.base.OverflowBarier()
 
         ref_detect = True
@@ -119,10 +133,11 @@ def serialize(obj, *, ctx):
             # return ``markup.Ref`` element.
             #
             obj_id = id(obj)
-            if obj_id in ctx.memo:
+            memo = ctx.memo
+            if obj_id in memo:
                 return elements.lang.Ref(ref=obj_id, refname=repr(obj))
             else:
-                ctx.memo.add(obj_id)
+                memo.add(obj_id)
                 ctx.keep_alive.append(obj)
 
         try:
