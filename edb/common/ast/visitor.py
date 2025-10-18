@@ -19,9 +19,7 @@
 
 from __future__ import annotations
 
-from typing import (
-    AbstractSet, Any, Callable, Collection, Optional, Iterable
-)
+from typing import AbstractSet, Any, Callable, Collection, Optional, Iterable
 
 from edb.common import typeutils
 
@@ -123,30 +121,28 @@ class NodeVisitor:
         return visitor.visit(node)
 
     def container_visit(self, node) -> dict[Any, Any] | Iterable[Any]:
+        is_ast_node = base.is_ast_node
+        is_container = typeutils.is_container
+
         def _visit_element(elem):
-            if base.is_ast_node(elem) or typeutils.is_container(elem):
+            if is_ast_node(elem) or is_container(elem):
                 return self.visit(elem)
             else:
                 return elem
 
-        result: dict[Any, Any] | Iterable[Any]
-
         if isinstance(node, dict):
-            result = {}
-            for key, value in node.items():
-                result[key] = _visit_element(value)
+            # Avoid repeated attribute lookups for .items
+            result = {key: _visit_element(value) for key, value in node.items()}
+            return result
 
         elif isinstance(node, tuple):
-            result = ()
-            for elem in node:
-                result += (_visit_element(elem),)
+            # Use tuple comprehension for performance
+            return tuple(_visit_element(elem) for elem in node)
 
         else:
-            result = []
-            for elem in node:
-                result.append(_visit_element(elem))
-
-        return result
+            # Assume node is an iterable (e.g. list): preallocate resulting list for better perf when large
+            # Note: If node is not actually an Iterable, this will fail as before.
+            return [_visit_element(elem) for elem in node]
 
     def repeated_node_visit(self, node):
         result = self.memo[node]
