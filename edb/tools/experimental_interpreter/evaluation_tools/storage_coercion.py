@@ -70,27 +70,25 @@ def make_storage_atomic(val: Val, tp: Tp) -> Val:
 # we require fmt to be a storage tp -- No Computable Types should be present
 def coerce_to_storage(val: ObjectVal, fmt: ObjectTp) -> dict[str, MultiSetVal]:
     # ensure no redundant keys
-    extra_keys = [
-        k
-        for k in val.val.keys()
-        if k not in [StrLabel(k) for k in fmt.val.keys()]
-    ]
+    fmt_keys = list(fmt.val.keys())
+    fmt_strlabel_keys = {StrLabel(k) for k in fmt_keys}
+    val_keys = list(val.val.keys())
+
+    extra_keys = [k for k in val_keys if k not in fmt_strlabel_keys]
     if extra_keys:
         raise ValueError(
             "Coercion failed, object contains redundant keys:",
             extra_keys,
             "val_keys are",
-            val.val.keys(),
+            val_keys,
             "fmt_keys are",
-            fmt.val.keys(),
+            fmt_keys,
             "when coercing ",
             pp.show_val(val),
             " to ",
             pp.show_tp(fmt),
         )
-    left_out_keys = [
-        k for k in fmt.val.keys() if StrLabel(k) not in val.val.keys()
-    ]
+    left_out_keys = [k for k in fmt_keys if StrLabel(k) not in val_keys]
     if left_out_keys:
         raise ValueError(
             "Coercion failed, object missing keys:",
