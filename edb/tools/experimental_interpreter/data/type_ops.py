@@ -8,12 +8,14 @@ from ..schema import subtyping_resolution
 
 import edgedb
 
+_ANY_TP = e.AnyTp()
+
 
 def construct_tp_intersection(tp1: e.Tp, tp2: e.Tp) -> e.Tp:
     # TODO: optimize so that if tp1 is a subtype of tp2, we return tp2
-    if tp1 == e.AnyTp():
+    if tp1 is _ANY_TP:
         return tp2
-    elif tp2 == e.AnyTp():
+    elif tp2 is _ANY_TP:
         return tp1
     else:
         return e.IntersectTp(tp1, tp2)
