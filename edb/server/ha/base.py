@@ -24,6 +24,8 @@ import urllib.parse
 from edb.common import asyncwatcher
 from edb.server import metrics
 
+_stolon_mod = None
+
 
 class ClusterProtocol:
     def on_switch_over(self):
@@ -56,10 +58,13 @@ class HABackend(asyncwatcher.AsyncWatcher):
 
 
 def get_backend(parsed_dsn: urllib.parse.ParseResult) -> Optional[HABackend]:
+    global _stolon_mod
     backend, _, sub_scheme = parsed_dsn.scheme.partition("+")
     if backend == "stolon":
-        from . import stolon
+        if _stolon_mod is None:
+            from . import stolon as _stolon_mod_local
 
-        return stolon.get_backend(sub_scheme, parsed_dsn)
+            _stolon_mod = _stolon_mod_local
+        return _stolon_mod.get_backend(sub_scheme, parsed_dsn)
 
     return None
