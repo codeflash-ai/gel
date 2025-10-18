@@ -8,6 +8,17 @@ from ..schema import subtyping_resolution
 
 import edgedb
 
+_NON_PRIMITIVE_TYPES = (
+    e.ObjectTp,
+    e.SomeTp,
+    e.NamedNominalLinkTp,
+    e.NominalLinkTp,
+    e.AnyTp,
+    e.CompositeTp,
+    e.UnionTp,
+    e.IntersectTp,
+)
+
 
 def construct_tp_intersection(tp1: e.Tp, tp2: e.Tp) -> e.Tp:
     # TODO: optimize so that if tp1 is a subtype of tp2, we return tp2
@@ -400,27 +411,18 @@ def get_storage_tp(fmt: e.ObjectTp) -> e.ObjectTp:
 
 
 def tp_is_primitive(tp: e.Tp) -> bool:
-    match tp:
-        case e.ScalarTp(_):
-            return True
-        case (
-            e.ObjectTp(_)
-            | e.SomeTp(_)
-            | e.NamedNominalLinkTp(_)
-            | e.NominalLinkTp(_)
-            | e.AnyTp()
-        ):
-            return False
-        case e.UnionTp(left=_, right=_) | e.IntersectTp(left=_, right=_):
-            return False  # this case is actually ambiguous
-        case e.ComputableTp(tp=under_tp, expr=_):
-            return tp_is_primitive(under_tp)
-        case e.DefaultTp(tp=under_tp, expr=_):
-            return tp_is_primitive(under_tp)
-        case e.CompositeTp(_):
-            return False
-        case _:
-            raise ValueError("Not implemented", tp)
+    if isinstance(tp, e.ScalarTp):
+        return True
+    
+    if type(tp) in _NON_PRIMITIVE_TYPES:
+        return False  # this case is actually ambiguous for UnionTp/IntersectTp
+    
+    if isinstance(tp, e.ComputableTp):
+        return tp_is_primitive(tp.tp)
+    if isinstance(tp, e.DefaultTp):
+        return tp_is_primitive(tp.tp)
+    
+    raise ValueError("Not implemented", tp)
 
 
 def match_param_modifier(p: e.ParamModifier, m: e.CMMode) -> e.CMMode:
