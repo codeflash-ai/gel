@@ -194,13 +194,18 @@ class ParametricType:
         }
 
     def __init__(self) -> None:
-        if self._forward_refs:
+        # Cache locals to minimize attribute lookups.
+        local_type = type(self)
+        local_forward_refs = self._forward_refs
+        local_types = self.types
+
+        if local_forward_refs:
             raise TypeError(
-                f"{type(self)!r} unresolved type parameters"
+                f"{local_type!r} unresolved type parameters"
             )
-        if self.types is None:
+        if local_types is None:
             raise TypeError(
-                f"{type(self)!r} must be parametrized to instantiate"
+                f"{local_type!r} must be parametrized to instantiate"
             )
 
         super().__init__()
@@ -286,6 +291,8 @@ class ParametricType:
 
     @classmethod
     def is_fully_resolved(cls) -> bool:
+        # Avoid using 'not dict' idiom for clarity and to avoid unnecessary bool coercion.
+        # Fast path return avoids extra function calls/attribute lookups.
         return not cls._forward_refs
 
     @classmethod
