@@ -29,8 +29,7 @@ from typing import (
     Callable,
     cast,
     get_type_hints,
-    TYPE_CHECKING,
-    AbstractSet  # NoQA
+    TYPE_CHECKING  # NoQA
 )
 
 from edb.common import debug
@@ -360,17 +359,18 @@ _marker = object()
 
 def iter_fields(node, *, include_meta=True, exclude_unset=False):
     exclude_meta = not include_meta
-    for field_name, field in node._fields.items():
+    _fields_items = node._fields.items()
+    _marker_local = _marker
+    getattr_local = getattr
+    for field_name, field in _fields_items:
         if exclude_meta and field.meta:
             continue
-        field_val = getattr(node, field_name, _marker)
-        if field_val is _marker:
+        field_val = getattr_local(node, field_name, _marker_local)
+        if field_val is _marker_local:
             continue
         if exclude_unset:
-            if field.factory:
-                default = field.factory()
-            else:
-                default = field.default
+            # Only call factory or access default if needed
+            default = field.factory() if field.factory else field.default
             if field_val == default:
                 continue
         yield field_name, field_val
