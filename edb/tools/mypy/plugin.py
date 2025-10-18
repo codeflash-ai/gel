@@ -216,6 +216,8 @@ class BaseTransformer:
     ) -> None:
         self._ctx = ctx
         self._options = options
+        # Precompute and cache the metadata key to avoid recalculation
+        self._metadata_key: str = f'{METADATA_KEY}%%{type(self).__name__}'
 
     def transform(self):
         ctx = self._ctx
@@ -306,7 +308,7 @@ class BaseTransformer:
         return t
 
     def _get_metadata_key(self) -> str:
-        return f'{METADATA_KEY}%%{type(self).__name__}'
+        return self._metadata_key
 
     def _has_explicit_field_accessor(self, fieldname: str) -> bool:
         cls = self._ctx.cls
