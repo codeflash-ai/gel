@@ -19,9 +19,7 @@
 
 from __future__ import annotations
 
-from typing import (
-    AbstractSet, Any, Callable, Collection, Optional, Iterable
-)
+from typing import AbstractSet, Any, Callable, Collection, Optional, Iterable
 
 from edb.common import typeutils
 
@@ -205,35 +203,35 @@ def nodes_equal(n1, n2):
     if type(n1) is not type(n2):
         return False
 
+    n1_fields = n1._fields
+    n2_fields = n2._fields
+    getattr_local = getattr
+    is_ast_node_local = base.is_ast_node
+    is_container_local = typeutils.is_container
     for field, _value in base.iter_fields(n1, include_meta=False):
-        if not n1._fields[field].hidden:
-            n1v = getattr(n1, field)
-            n2v = getattr(n2, field)
+        f = n1_fields[field]
+        if not f.hidden:
+            n1v = getattr_local(n1, field)
+            n2v = getattr_local(n2, field)
 
-            if typeutils.is_container(n1v):
-                n1v = list(n1v)
-                if typeutils.is_container(n2v):
-                    n2v = list(n2v)
-                else:
+            if is_container_local(n1v):
+                if not is_container_local(n2v):
+                    return False
+                n1vl = list(n1v)
+                n2vl = list(n2v)
+                if len(n1vl) != len(n2vl):
                     return False
 
-                if len(n1v) != len(n2v):
-                    return False
-
-                for i, item1 in enumerate(n1v):
-                    try:
-                        item2 = n2v[i]
-                    except IndexError:
-                        return False
-
-                    if base.is_ast_node(item1):
+                # Use zip for elementwise comparison; avoids IndexError
+                for item1, item2 in zip(n1vl, n2vl):
+                    if is_ast_node_local(item1):
                         if not nodes_equal(item1, item2):
                             return False
                     else:
                         if item1 != item2:
                             return False
 
-            elif base.is_ast_node(n1v):
+            elif is_ast_node_local(n1v):
                 if not nodes_equal(n1v, n2v):
                     return False
 
