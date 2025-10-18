@@ -702,7 +702,8 @@ def combine_tp_with_linkprop_tp(
             )
         case _:
             raise ValueError(
-                "not implemented combine tp", pp.show(o1), pp.show(o2)
+                "not implemented combine tp: "
+                f"{type(o1).__name__}, {type(o2).__name__}"
             )
 
 
