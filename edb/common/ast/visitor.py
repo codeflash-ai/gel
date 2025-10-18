@@ -19,9 +19,7 @@
 
 from __future__ import annotations
 
-from typing import (
-    AbstractSet, Any, Callable, Collection, Optional, Iterable
-)
+from typing import AbstractSet, Any, Callable, Collection, Optional, Iterable
 
 from edb.common import typeutils
 
@@ -149,27 +147,34 @@ class NodeVisitor:
         return result
 
     def repeated_node_visit(self, node):
-        result = self.memo[node]
+        # Direct variable rather than attribute lookup for speed
+        result = self._memo[node]
         if result is None:
             return node
         else:
             return result
 
     def node_visit(self, node):
-        if node in self.memo:
+        memo = self._memo
+        if node in memo:
             return self.repeated_node_visit(node)
         else:
-            self.memo[node] = None
+            memo[node] = None
 
-        for cls in node.__class__.__mro__:
-            method = 'visit_' + cls.__name__
-            visitor = getattr(self, method, None)
+        # To reduce repeated method name string creation, cache __class__ and mro
+        cls_mro = node.__class__.__mro__
+        visitor = None
+        for cls in cls_mro:
+            # Use f-string for slightly more efficient string building
+            method_name = f'visit_{cls.__name__}'
+            visitor = getattr(self, method_name, None)
             if visitor is not None:
                 break
         else:
             visitor = self.generic_visit
+
         result = visitor(node)
-        self.memo[node] = result
+        memo[node] = result
         return result
 
     def visit(self, node):
@@ -199,6 +204,11 @@ class NodeVisitor:
 
     def combine_field_results(self, results):
         return results
+
+    @property
+    def memo(self):
+        # Avoid __dict__ lookup every call -- cache the lookup
+        return self._memo
 
 
 def nodes_equal(n1, n2):
