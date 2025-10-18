@@ -113,11 +113,16 @@ class BinWrapper:
         return self.read_bytes(size)
 
     def read_nullable_len32_prefixed_bytes(self) -> bytes | None:
-        size = self.read_i32()
+        # Inline, to avoid attribute lookups and unnecessary stack frames
+        data = self.buf.read(4)
+        size = BinWrapper.i32.unpack(data)[0]
         if size == -1:
             return None
         else:
-            return self.read_bytes(size)
+            data = self.buf.read(size)
+            if len(data) != size:
+                raise BufferError(f'cannot read bytes with len={size}')
+            return data
 
     def tell(self) -> int:
         return self.buf.tell()
