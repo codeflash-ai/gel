@@ -3,7 +3,6 @@ from . import expr_ops as eops
 from typing import Optional, Callable
 from . import module_ops as mops
 from ..data import expr_to_str as pp
-from functools import reduce
 from ..schema import subtyping_resolution
 
 import edgedb
@@ -32,7 +31,21 @@ def construct_tp_union(tp1: e.Tp, tp2: e.Tp) -> e.Tp:
 
 def construct_tps_union(tps: list[e.Tp]) -> e.Tp:
     assert len(tps) > 0
-    return reduce(construct_tp_union, tps)
+    # Fastpath for single-element input
+    if len(tps) == 1:
+        return tps[0]
+    # Manual loop avoids overhead of functools.reduce and can short-circuit equality
+    it = iter(tps)
+    acc = next(it)
+    for tp in it:
+        if acc is tp:
+            continue
+        if not (isinstance(acc, e.UncheckedTypeName) or isinstance(tp, e.UncheckedTypeName)):
+            if acc == tp:
+                continue
+        # Use local fastpath function rather than repeated function call
+        acc = e.UnionTp(acc, tp)
+    return acc
 
 
 def collect_tp_intersection(tp1: e.Tp) -> list[e.Tp]:
