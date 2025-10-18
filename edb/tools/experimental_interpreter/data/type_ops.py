@@ -74,11 +74,16 @@ def is_nominal_subtype_in_schema(
 
 
 def mode_is_optional(m: e.CMMode) -> bool:
-    return isinstance(m.lower, e.ZeroCardinal)
+    # Short-circuit type check with direct class comparison for faster performance
+    return type(m.lower) is e.ZeroCardinal
 
 
 def object_tp_is_essentially_optional(tp: e.ObjectTp) -> bool:
-    return all(mode_is_optional(md_tp.mode) for md_tp in tp.val.values())
+    # Avoid generator expression overhead by using a for-loop with early exit
+    for md_tp in tp.val.values():
+        if not mode_is_optional(md_tp.mode):
+            return False
+    return True
 
 
 def dereference_var_tp(
