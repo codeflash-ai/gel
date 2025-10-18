@@ -103,8 +103,7 @@ class BackendRuntimeParams(NamedTuple):
     @property
     def has_create_role(self) -> bool:
         return bool(
-            self.instance_params.capabilities
-            & BackendCapabilities.CREATE_ROLE
+            self.instance_params.capabilities & BackendCapabilities.CREATE_ROLE
         )
 
     @property
@@ -149,7 +148,7 @@ def get_default_runtime_params(
                 micro=0,
                 releaselevel='final',
                 serial=0,
-                string='100.0'
+                string='100.0',
             )
 
         instance_params = dict(
@@ -163,6 +162,7 @@ def get_default_runtime_params(
 
 
 def _is_c_utf8_locale_present() -> bool:
+    current = locale.setlocale(locale.LC_CTYPE)
     try:
         locale.setlocale(locale.LC_CTYPE, 'C.UTF-8')
     except Exception:
@@ -170,5 +170,5 @@ def _is_c_utf8_locale_present() -> bool:
     else:
         # We specifically don't use locale.getlocale(), because
         # it can lie and return a non-existent locale due to PEP 538.
-        locale.setlocale(locale.LC_CTYPE, '')
+        locale.setlocale(locale.LC_CTYPE, current)
         return True
