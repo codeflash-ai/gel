@@ -16,8 +16,7 @@ import typing
 from contextlib import suppress
 
 StackSummaryLike = (
-    traceback.StackSummary
-    | list[tuple[str, typing.Any, str, typing.Any]]
+    traceback.StackSummary | list[tuple[str, typing.Any, str, typing.Any]]
 )
 
 
@@ -25,9 +24,7 @@ def format_exception(e: BaseException) -> str:
     exctype = type(e)
     value = e
     tb = e.__traceback__
-    tb_e = traceback.TracebackException(
-        exctype, value, tb, compact=True
-    )
+    tb_e = traceback.TracebackException(exctype, value, tb, compact=True)
     tb_e.stack = StandardStackSummary(tb_e.stack)
     return '\n'.join(tb_e.format())
 
@@ -79,10 +76,14 @@ def _format_stack_summary(stack: list[traceback.FrameSummary]):
     last_line = None
     last_name = None
     count = 0
+    append = result.append  # localize for performance
+    _RECURSIVE_CUTOFF = traceback._RECURSIVE_CUTOFF  # localize attribute
+
     for frame_summary in stack:
         formatted_frame = _format_frame_summary(frame_summary)
         if formatted_frame is None:
             continue
+        # Inline and rearrange for faster path and break out early
         if (
             last_file is None
             or last_file != frame_summary.filename
@@ -91,26 +92,26 @@ def _format_stack_summary(stack: list[traceback.FrameSummary]):
             or last_name is None
             or last_name != frame_summary.name
         ):
-            if count > traceback._RECURSIVE_CUTOFF:
-                count -= traceback._RECURSIVE_CUTOFF
-                result.append(
-                    f'  [Previous line repeated {count} more '
-                    f'time{"s" if count > 1 else ""}]\n'
+            if count > _RECURSIVE_CUTOFF:
+                rep_count = count - _RECURSIVE_CUTOFF
+                append(
+                    f'  [Previous line repeated {rep_count} more '
+                    f'time{"s" if rep_count > 1 else ""}]\n'
                 )
             last_file = frame_summary.filename
             last_line = frame_summary.lineno
             last_name = frame_summary.name
             count = 0
         count += 1
-        if count > traceback._RECURSIVE_CUTOFF:
+        if count > _RECURSIVE_CUTOFF:
             continue
-        result.append(formatted_frame)
+        append(formatted_frame)
 
-    if count > traceback._RECURSIVE_CUTOFF:
-        count -= traceback._RECURSIVE_CUTOFF
-        result.append(
-            f'  [Previous line repeated {count} more '
-            f'time{"s" if count > 1 else ""}]\n'
+    if count > _RECURSIVE_CUTOFF:
+        rep_count = count - _RECURSIVE_CUTOFF
+        append(
+            f'  [Previous line repeated {rep_count} more '
+            f'time{"s" if rep_count > 1 else ""}]\n'
         )
     return result
 
@@ -122,29 +123,29 @@ def _format_frame_summary(frame: traceback.FrameSummary):
     gets called for every frame to be printed in the stack summary.
     """
     row = [f'  {frame.filename}:{frame.lineno}, in {frame.name}\n']
-    if frame.line:
-        stripped_line = frame.line.strip()
-        row.append('    {}\n'.format(stripped_line))
+    line = frame.line
+    if line:
+        stripped_line = line.strip()
+        row.append('    ')
+        row.append(stripped_line)
+        row.append('\n')
 
         orig_line_len = len(frame._original_line)
-        frame_line_len = len(frame.line.lstrip())
+        frame_line_lstrip = line.lstrip()
+        frame_line_len = len(frame_line_lstrip)
         stripped_characters = orig_line_len - frame_line_len
-        if frame.colno is not None and frame.end_colno is not None:
-            start_offset = (
-                traceback._byte_offset_to_character_offset(
-                    frame._original_line, frame.colno
-                )
-                + 1
-            )
-            end_offset = (
-                traceback._byte_offset_to_character_offset(
-                    frame._original_line, frame.end_colno
-                )
-                + 1
-            )
+
+        # Localize frequently accessed attributes and functions
+        colno = frame.colno
+        end_colno = frame.end_colno
+        if colno is not None and end_colno is not None:
+            _bo2co = traceback._byte_offset_to_character_offset
+            start_offset = _bo2co(frame._original_line, colno) + 1
+            end_offset = _bo2co(frame._original_line, end_colno) + 1
 
             anchors = None
             if frame.lineno == frame.end_lineno:
+                # Suppress exceptions on potentially error-prone user source code
                 with suppress(Exception):
                     anchors = (
                         traceback._extract_caret_anchors_from_line_segment(
@@ -154,6 +155,7 @@ def _format_frame_summary(frame: traceback.FrameSummary):
                         )
                     )
             else:
+                # prefer precalculated val, avoid recomputing len, .strip() etc
                 end_offset = stripped_characters + len(stripped_line)
 
             # show indicators if primary char doesn't span the frame line
@@ -165,26 +167,24 @@ def _format_frame_summary(frame: traceback.FrameSummary):
                 row.append(' ' * (start_offset - stripped_characters))
 
                 if anchors:
-                    row.append(anchors.primary_char * (anchors.left_end_offset))
+                    # Use the specific anchor info as present
+                    left_end_offset = anchors.left_end_offset
+                    right_start_offset = anchors.right_start_offset
+                    row.append(anchors.primary_char * left_end_offset)
                     row.append(
                         anchors.secondary_char
-                        * (anchors.right_start_offset - anchors.left_end_offset)
+                        * (right_start_offset - left_end_offset)
                     )
                     row.append(
                         anchors.primary_char
-                        * (
-                            end_offset
-                            - start_offset
-                            - anchors.right_start_offset
-                        )
+                        * (end_offset - start_offset - right_start_offset)
                     )
                 else:
                     row.append('^' * (end_offset - start_offset))
-
                 row.append('\n')
 
-    if frame.locals:
-        for name, value in sorted(frame.locals.items()):
-            row.append('    {name} = {value}\n'.format(name=name, value=value))
-
+    frame_locals = frame.locals
+    if frame_locals:
+        for name, value in sorted(frame_locals.items()):
+            row.append(f'    {name} = {value}\n')
     return ''.join(row)
