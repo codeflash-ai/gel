@@ -357,8 +357,16 @@ DCOLORS = list(gen_colors(RGB(190, 190, 190), RGB(240, 240, 240), 7))
 
 
 def gradient_from_name(name: str) -> float:
+    # Optimize by caching hash computation for previously seen names,
+    # as this is a hotspot and the result is deterministic per name.
+    # In CPython, function attribute is faster than functools.lru_cache for small, fast-to-hash strings.
+    cache = gradient_from_name.__dict__.setdefault("_cache", {})
+    if name in cache:
+        return cache[name]
     v = int(hashlib.sha1(name.encode("utf8")).hexdigest()[:8], base=16)
-    return v / (0xFFFFFFFF + 1.0)
+    result = v / (0xFFFFFFFF + 1.0)
+    cache[name] = result
+    return result
 
 
 def calc_callers(
@@ -878,47 +886,98 @@ def render_svg_section(
     javascript: str = "",
     invert: bool = False,
 ) -> str:
+    # Minor: avoid repeated attribute/method/constant lookups in hot loop
+    # and precompute expressions used multiple times.
+    content_append = [].append  # Fewer locals
+    sax_escape = saxutils.escape
+    ELEM_fmt = ELEM.format
+    block_height_f = float(block_height)
+
+    # Pre-compute maxlevel, height and top
     maxlevel = max(r.level for r in blocks) + 1
     height = (maxlevel + 1) * block_height
     top = 0 if not invert else 3 * block_height
-    content = []
-    for b in blocks:
-        x = b.x * width / maxw
-        tx = block_height / 6
+
+    # Pre-allocate list with len(blocks) because content.append is one of the hot spots.
+    content = [None] * len(blocks)
+    fill_idx_cache = {}
+
+    # Hot expressions outside the loop
+    width_f = float(width)
+    maxw_f = float(maxw)
+    nblocks = len(blocks)
+    bcolors_len_cache = {}
+
+    for i, b in enumerate(blocks):
+        x = b.x * width_f / maxw_f
+        tx = block_height_f / 6
         y = b.level
         if invert:
             y = maxlevel - y
         y = top + height - y * block_height - block_height
-        ty = block_height / 2
-        w = max(1, b.w * width / maxw - 1)
-        bcolors = colors[b.color]
-        fill = bcolors[int(len(bcolors) * gradient_from_name(b.id))]
-        content.append(
-            ELEM.format(
-                w=w,
-                x=x,
-                y=y,
-                tx=tx,
-                ty=ty,
-                name=saxutils.escape(b.name),
-                full_name=saxutils.escape(b.full_name),
-                font_size=font_size,
-                h=block_height - 1,
-                fill=fill,
-                upsidedown="true" if invert else "false",
-            )
+        ty = block_height_f / 2
+        w = max(1, b.w * width_f / maxw_f - 1)
+
+        color_idx = b.color
+        bcolors = colors[color_idx]
+
+        # Pre-cache len(bcolors) per color index as it is typically stable for the run
+        if color_idx in bcolors_len_cache:
+            nbcolors = bcolors_len_cache[color_idx]
+        else:
+            nbcolors = len(bcolors)
+            bcolors_len_cache[color_idx] = nbcolors
+
+        bid = b.id
+        # Speed up by computing the gradient index for b.id and color set only once
+        cache_key = (color_idx, bid)
+        if cache_key in fill_idx_cache:
+            fill_idx = fill_idx_cache[cache_key]
+        else:
+            grad = gradient_from_name(bid)
+            fill_idx = int(nbcolors * grad)
+            # Safeguard against overflow due to float arithmetic quirks
+            if fill_idx >= nbcolors:
+                fill_idx = nbcolors - 1
+            fill_idx_cache[cache_key] = fill_idx
+        fill = bcolors[fill_idx]
+
+        name_esc = sax_escape(b.name)
+        full_name_esc = sax_escape(b.full_name)
+        content[i] = ELEM_fmt(
+            w=w,
+            x=x,
+            y=y,
+            tx=tx,
+            ty=ty,
+            name=name_esc,
+            full_name=full_name_esc,
+            font_size=font_size,
+            h=block_height - 1,
+            fill=fill,
+            upsidedown="true" if invert else "false",
         )
-    height += block_height
+
+    # Avoid repeated attribute lookups in remaining code
+    content_append = content.append
+    # Add the DETAILS segment (not vectorized, but single call)
+    height_plus_block = height + block_height
+    detail_y = 2 * block_height if invert else height_plus_block
+
     content.append(
         DETAILS.format(
-            font_size=font_size, y=2 * block_height if invert else height
+            font_size=font_size,
+            y=detail_y,
         )
     )
+
+    # Join strings as a final step (optimal, all pre-escaped)
+    svg_content = "\n".join(content)
     result = SVG.format(
-        "\n".join(content),
+        svg_content,
         javascript=javascript,
         width=width,
-        height=top + height + block_height,
+        height=top + height_plus_block,
         unzoom_button_x=width - 100,
         ui_font_size=1.33 * font_size,
     )
