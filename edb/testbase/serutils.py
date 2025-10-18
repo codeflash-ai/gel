@@ -35,7 +35,8 @@ def serialize(o):
 
 @serialize.register
 def _tuple(o: edgedb.Tuple):
-    return [serialize(el) for el in o]
+    dispatch = serialize.dispatch
+    return [dispatch(type(el))(el) for el in o]
 
 
 @serialize.register
