@@ -543,12 +543,22 @@ class ScopeCache:
 def count_calls(funcs: dict[FunctionID, Function]) -> Counter[Call]:
     call_counter: Counter[Call] = Counter()
 
+    # Optimization: use a list for the call stack to avoid set copying; 
+    # additionally, only add calls to the stack, check presence in O(1) with a set.
     def _counts(caller: FunctionID, visited: set[Call], level: int = 0) -> None:
-        for callee in funcs[caller].calls:
-            call = caller, callee
+        funcs_caller = funcs[caller]
+        calls = funcs_caller.calls
+        for callee in calls:
+            call = (caller, callee)
             call_counter[call] += 1
+            # Fast path: avoid creating a new set if not needed; use visited as is
+            # This test is the critical one in the original
             if call_counter[call] < 2 and call not in visited:
-                _counts(callee, visited | {call}, level + 1)
+                # Instead of visited | {call} (which copies), mutate a local set, pass it down, and backtrack after.
+                # Since we're in a recursion and the original visited is unique per call, we can make a single set mutation and pop after recursion.
+                visited.add(call)
+                _counts(callee, visited, level + 1)
+                visited.remove(call)
 
     _counts(ROOT_ID, set())
     return call_counter
