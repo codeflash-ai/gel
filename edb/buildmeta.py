@@ -148,13 +148,16 @@ def parse_pg_version(version_string: str) -> BackendVersion:
     if version_match is None:
         raise ValueError(
             f"malformed Postgres version string: {version_string!r}")
-    version = version_match.groupdict()
+    major = int(version_match.group("major"))
+    minor = version_match.group("minor")
+    serial = version_match.group("serial")
+    releaselevel = version_match.group("releaselevel")
     return BackendVersion(
-        major=int(version["major"]),
+        major=major,
         minor=0,
-        micro=int(version.get("minor") or 0),
-        releaselevel=version.get("releaselevel") or "final",
-        serial=int(version.get("serial") or 0),
+        micro=int(minor) if minor is not None else 0,
+        releaselevel=releaselevel if releaselevel is not None else "final",
+        serial=int(serial) if serial is not None else 0,
         string=version_string,
     )
 
