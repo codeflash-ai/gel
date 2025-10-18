@@ -444,11 +444,12 @@ def is_order_spec(tp: e.ResultTp) -> bool:
 
 
 def is_tp_projection_tuple_proj(tp: e.Tp) -> bool:
-    match tp:
-        case e.CompositeTp(kind=e.CompositeTpKind.Tuple, tps=_):
-            return True
-        case _:
-            return False
+    # Optimize with direct attribute checks to avoid the overhead of pattern matching.
+    # This assumes e.CompositeTp is a class with 'kind' attribute,
+    # and e.CompositeTpKind.Tuple is a constant.
+    return (
+        type(tp) is e.CompositeTp and tp.kind is e.CompositeTpKind.Tuple
+    )
 
 
 def can_project_label_from_tp(
