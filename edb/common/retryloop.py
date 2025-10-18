@@ -40,8 +40,9 @@ def exp_backoff(
     jitter_scale: float = 0.001,
 ) -> Callable[[int], float]:
     def _f(i: int) -> float:
-        delay: int = 2 ** i
+        delay: int = 2**i
         return delay * factor + random.randrange(100) * jitter_scale
+
     return _f
 
 
@@ -88,7 +89,8 @@ class RetryLoop:
         else:
             # Second or greater run -- delay before yielding
             delay = self._backoff(self._iteration)
-            await asyncio.sleep(delay)
+            if delay > 0:
+                await asyncio.sleep(delay)
 
         self._iteration += 1
 
@@ -112,8 +114,8 @@ class RetryIteration:
         elapsed = time.monotonic() - self._loop._started_at
 
         if (
-            self._loop._ignore is not None or
-            self._loop._ignore_regexp is not None
+            self._loop._ignore is not None
+            or self._loop._ignore_regexp is not None
         ):
             # Mode 1: Try until we don't get errors matching `ignore`
 
@@ -143,14 +145,14 @@ class RetryIteration:
             # Mode 2: Try until we fail with an error matching `wait_for`
 
             assert (
-                self._loop._wait_for is not None or
-                self._loop._wait_for_regexp is not None
+                self._loop._wait_for is not None
+                or self._loop._wait_for_regexp is not None
             )
 
             if et is not None:
                 if (
-                    self._loop._wait_for is None or
-                    isinstance(e, self._loop._wait_for)
+                    self._loop._wait_for is None
+                    or isinstance(e, self._loop._wait_for)
                 ) and (
                     self._loop._wait_for_regexp is None
                     or self._loop._wait_for_regexp.search(str(e))
@@ -165,7 +167,8 @@ class RetryIteration:
             if elapsed > self._loop._timeout:
                 raise TimeoutError(
                     f'exception matching {self._loop._wait_for!r} '
-                    f'has not happen in {self._loop._timeout} seconds')
+                    f'has not happen in {self._loop._timeout} seconds'
+                )
 
             # Ignore the exception until next run.
             return True
