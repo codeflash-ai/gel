@@ -570,26 +570,21 @@ def find_singledispatch_wrapper(
         dispatch_name = "dispatch"
         wrapper_name = "sd_wrapper"
 
-    for (modpath, _lineno, funcname), (_, _, _, _, callers) in stats.items():
-        if funcname != dispatch_name:
-            continue
+    dispatch_candidates = [
+        ((modpath, lineno, funcname), callers)
+        for (modpath, lineno, funcname), (_, _, _, _, callers) in stats.items()
+        if funcname == dispatch_name and functools_path.search(modpath)
+    ]
 
-        m = functools_path.search(modpath)
-        if not m:
-            continue
-
+    for (modpath, _lineno, funcname), callers in dispatch_candidates:
         # Using this opportunity, we're figuring out which `wrapper` from
         # functools in the trace is the singledispatch `wrapper` (there
         # are three more others in functools.py).
         for caller_modpath, caller_lineno, caller_funcname in callers:
             if caller_funcname == wrapper_name:
-                m = functools_path.search(modpath)
-                if not m:
-                    continue
-
+                # modpath is already match-checked
                 return (caller_modpath, caller_lineno, caller_funcname)
-
-        raise LookupError("singledispatch.dispatch without wrapper?")
+        raise LookupError("singledispatch.dispatch without wrapper?")  # preserve original semantic
 
     raise LookupError("No singledispatch use in provided stats")
 
@@ -627,21 +622,28 @@ def filter_singledispatch_in_place(
         return
 
     # Delete the function from stats
-    del stats[wrapper]
+    stats.pop(wrapper, None)
 
     # Fix up all "callers" stats
+    # Precompute for improved reference speed
     singledispatch_functions = {d: (0, 0, 0, 0) for d in dispatches}
-    for funcid, (_, _, _, _, callers) in stats.items():
-        if wrapper not in callers:
-            continue
+    # Find all funcids whose callers include wrapper in advance (reduces cost for large stats)
+    funcids_with_wrapper = [funcid for funcid, (_, _, _, _, callers) in stats.items() if wrapper in callers]
 
-        new_direct_calls = {}
-        for call_counts in dispatches.values():
-            for caller, calls in call_counts.items():
-                if funcid not in calls:
-                    continue
+    # Instead of recalculating per-dict lookup, build reverse lookup for dispatches (map funcid -> callers/counts)
+    direct_calls_map: dict = {}
+    for call_counts in dispatches.values():
+        for caller, calls in call_counts.items():
+            for callee, count in calls.items():
+                if callee not in direct_calls_map:
+                    direct_calls_map[callee] = {}
+                direct_calls_map[callee][caller] = count
 
-                new_direct_calls[caller] = calls[funcid]
+    for funcid in funcids_with_wrapper:
+        # Original callers
+        _, _, _, _, callers = stats[funcid]
+        # Gather all direct calls from wrapper, across dispatches
+        new_direct_calls = direct_calls_map.get(funcid, {})
 
         pcc, cc, tottime, cumtime = callers.pop(wrapper)
         all_calls = sum(new_direct_calls.values())
@@ -669,12 +671,12 @@ def filter_singledispatch_in_place(
         cumtime *= factor
 
         for caller, count in new_direct_calls.items():
-            factor = count / cc_fl
+            caller_factor = count / cc_fl
             callers[caller] = (
-                round(pcc_fl * factor),
+                round(pcc_fl * caller_factor),
                 count,
-                tottime * factor,
-                cumtime * factor,
+                tottime * caller_factor,
+                cumtime * caller_factor,
             )
 
     # Insert original single dispatch generic functions back
