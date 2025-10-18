@@ -561,32 +561,33 @@ def find_singledispatch_wrapper(
 
     Raises LookupError if not found.
     """
+    # Compile regexes only once per function call, not per loop iteration
     if regular_location:
-        functools_path = re.compile(r"python3.\d+/functools.py$")
+        functools_path_pattern = r"python3.\d+/functools.py$"
         dispatch_name = "dispatch"
         wrapper_name = "wrapper"
     else:
-        functools_path = re.compile(r"profiling/tracing_singledispatch.py$")
+        functools_path_pattern = r"profiling/tracing_singledispatch.py$"
         dispatch_name = "dispatch"
         wrapper_name = "sd_wrapper"
 
-    for (modpath, _lineno, funcname), (_, _, _, _, callers) in stats.items():
+    functools_path = re.compile(functools_path_pattern)
+
+    # Pre-localize lookups for small speedup in large loops
+    search = functools_path.search
+
+    for (modpath, _lineno, funcname), statdata in stats.items():
         if funcname != dispatch_name:
             continue
 
-        m = functools_path.search(modpath)
-        if not m:
+        if not search(modpath):
             continue
 
-        # Using this opportunity, we're figuring out which `wrapper` from
-        # functools in the trace is the singledispatch `wrapper` (there
-        # are three more others in functools.py).
+        # There should only be one match per loop, so no need to re-check inside inner loop.
+        callers = statdata[4]
         for caller_modpath, caller_lineno, caller_funcname in callers:
             if caller_funcname == wrapper_name:
-                m = functools_path.search(modpath)
-                if not m:
-                    continue
-
+                # No need to re-do search(modpath) here; already checked above.
                 return (caller_modpath, caller_lineno, caller_funcname)
 
         raise LookupError("singledispatch.dispatch without wrapper?")
