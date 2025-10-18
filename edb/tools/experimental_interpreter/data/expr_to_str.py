@@ -498,21 +498,22 @@ def show_ctx(ctx: e.TcCtx) -> str:
 
 
 def show(expr: Any) -> str:
-    if isinstance(expr, e.Tp):  # type: ignore
+    t = type(expr)
+    if t is e.Tp:  # type: ignore
         return show_tp(expr)
-    elif isinstance(expr, e.Expr):  # type: ignore
+    elif t is e.Expr:  # type: ignore
         return show_expr(expr)
-    elif isinstance(expr, e.Val):  # type: ignore
+    elif t is e.Val:  # type: ignore
         return show_val(expr)
-    elif isinstance(expr, e.TcCtx):
+    elif t is e.TcCtx:
         return show_ctx(expr)
-    elif isinstance(expr, e.ObjectVal):
+    elif t is e.ObjectVal:
         return show_val(expr)
-    elif isinstance(expr, e.ResultTp):
+    elif t is e.ResultTp:
         return show(expr.tp) + "^" + show_cmmode(expr.mode)
-    elif isinstance(expr, e.MultiSetVal):
+    elif t is e.MultiSetVal:
         return show_multiset_val(expr)
-    elif isinstance(expr, list):
+    elif t is list:
         return "!!!LIST([" + ", ".join(show(el) for el in expr) + "])"
     else:
         raise ValueError('Unimplemented', expr)
