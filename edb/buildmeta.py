@@ -421,8 +421,18 @@ def _decode_build_target(val: str) -> str:
 
 
 def _decode_build_date(val: str) -> datetime.datetime:
-    return datetime.datetime.strptime(val, r"%Y%m%d%H%M").replace(
-        tzinfo=datetime.timezone.utc)
+    if len(val) != 12 or not val.isdigit():
+        return datetime.datetime.strptime(val, r"%Y%m%d%H%M").replace(
+            tzinfo=datetime.timezone.utc)
+    year = int(val[0:4])
+    month = int(val[4:6])
+    day = int(val[6:8])
+    hour = int(val[8:10])
+    minute = int(val[10:12])
+    return datetime.datetime(
+        year, month, day, hour, minute,
+        tzinfo=datetime.timezone.utc
+    )
 
 
 def get_version_from_scm(root: pathlib.Path) -> str:
