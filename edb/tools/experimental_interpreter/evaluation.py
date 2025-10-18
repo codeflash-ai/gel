@@ -262,13 +262,14 @@ def offset_vals(val: Sequence[Val], offset: Val):
 
 
 def limit_vals(val: Sequence[Val], limit: Val) -> Sequence[Val]:
-    match limit:
-        case e.ScalarVal(_, v):
-            if v < 0:
-                raise ValueError("LIMIT must not be negative")
-            return val[:v]
-        case _:
-            raise ValueError("offset must be an int")
+    # Direct attribute access for ScalarVal members avoids destructuring and match overhead
+    if isinstance(limit, e.ScalarVal):
+        v = limit.val
+        if v < 0:
+            raise ValueError("LIMIT must not be negative")
+        return val[:v]
+    else:
+        raise ValueError("offset must be an int")
 
 
 def make_invisible(val: MultiSetVal) -> MultiSetVal:
