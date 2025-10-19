@@ -37,8 +37,7 @@ def _stream_socket_from_fd(fd: int) -> Optional[socket.socket]:
         sock = socket.socket(fileno=fd)
     except OSError:
         logger.warning(
-            f"activation file descriptor {fd} is not a socket "
-            f", ignoring"
+            f"activation file descriptor {fd} is not a socket " f", ignoring"
         )
         return None
 
@@ -64,15 +63,18 @@ def sd_notify(message: str) -> None:
     if not notify_socket:
         return
 
+    encoded_message = message.encode()
     if notify_socket[0] == '@':
         notify_socket = '\0' + notify_socket[1:]
 
-    with socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM) as sd_sock:
+    try:
+        sd_sock = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
         try:
-            sd_sock.connect(notify_socket)
-            sd_sock.sendall(message.encode())
-        except Exception as e:
-            logger.info('Could not send systemd notification: %s', e)
+            sd_sock.sendto(encoded_message, notify_socket)
+        finally:
+            sd_sock.close()
+    except Exception as e:
+        logger.info('Could not send systemd notification: %s', e)
 
 
 def sd_get_activation_listen_sockets() -> dict[str, list[socket.socket]]:
@@ -172,7 +174,8 @@ if sys.platform == "darwin":
             except LaunchActivateSocketError as e:
                 logger.warning(
                     f"could not activate socket {name}: "
-                    f"launch_activate_socket() returned {e.errno}")
+                    f"launch_activate_socket() returned {e.errno}"
+                )
                 continue
 
             for fd in fds:
