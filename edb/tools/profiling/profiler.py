@@ -54,6 +54,7 @@ import tempfile
 from xml.sax import saxutils
 
 from edb.tools.profiling import tracing_singledispatch
+from functools import lru_cache
 
 
 CURRENT_DIR = pathlib.Path(__file__).resolve().parent
@@ -356,7 +357,9 @@ ECOLORS = list(gen_colors(RGB(230, 230, 255), RGB(150, 150, 255), 5))
 DCOLORS = list(gen_colors(RGB(190, 190, 190), RGB(240, 240, 240), 7))
 
 
+@lru_cache(maxsize=8192)
 def gradient_from_name(name: str) -> float:
+    # The input space is large, but block ids/names observed are usually moderate and reused frequently.
     v = int(hashlib.sha1(name.encode("utf8")).hexdigest()[:8], base=16)
     return v / (0xFFFFFFFF + 1.0)
 
@@ -878,30 +881,52 @@ def render_svg_section(
     javascript: str = "",
     invert: bool = False,
 ) -> str:
+    # Precompute escape and gradient for all blocks to save repeated calculations in format/loop below
+    # Avoids recomputation, enables parallelization/compaction, and speeds up attribute lookups
+    
+    # Cache gradient and escapes for each block.id/name/full_name
+    block_ids = [b.id for b in blocks]
+    block_names = [b.name for b in blocks]
+    block_full_names = [b.full_name for b in blocks]
+
+    gradient_vals = [gradient_from_name(bid) for bid in block_ids]
+    esc_names = [saxutils.escape(n) for n in block_names]
+    esc_full_names = [saxutils.escape(fn) for fn in block_full_names]
+
+    # Precompute for each block to avoid recomputation during inner loop
     maxlevel = max(r.level for r in blocks) + 1
     height = (maxlevel + 1) * block_height
     top = 0 if not invert else 3 * block_height
     content = []
-    for b in blocks:
-        x = b.x * width / maxw
-        tx = block_height / 6
-        y = b.level
-        if invert:
-            y = maxlevel - y
-        y = top + height - y * block_height - block_height
-        ty = block_height / 2
-        w = max(1, b.w * width / maxw - 1)
-        bcolors = colors[b.color]
-        fill = bcolors[int(len(bcolors) * gradient_from_name(b.id))]
+
+    # Cache lengths of every color band for blocks, avoids repeated len() calls
+    bcolor_indices = [b.color for b in blocks]
+    bcolors_list = [colors[cidx] for cidx in bcolor_indices]
+    bcolors_len = [len(bcolors) for bcolors in bcolors_list]
+
+    # Compute all layout values up front
+    xs = [b.x * width / maxw for b in blocks]
+    ws = [max(1, b.w * width / maxw - 1) for b in blocks]
+    ys = [b.level for b in blocks]
+    if invert:
+        ys = [maxlevel - y for y in ys]
+    ys = [top + height - y * block_height - block_height for y in ys]
+    tx = block_height / 6
+    ty = block_height / 2
+
+    # Format all block elements at once, avoiding attribute lookup inside loop
+    for idx, b in enumerate(blocks):
+        # Calculate gradient-based color selection per block
+        fill = bcolors_list[idx][int(bcolors_len[idx] * gradient_vals[idx])]
         content.append(
             ELEM.format(
-                w=w,
-                x=x,
-                y=y,
+                w=ws[idx],
+                x=xs[idx],
+                y=ys[idx],
                 tx=tx,
                 ty=ty,
-                name=saxutils.escape(b.name),
-                full_name=saxutils.escape(b.full_name),
+                name=esc_names[idx],
+                full_name=esc_full_names[idx],
                 font_size=font_size,
                 h=block_height - 1,
                 fill=fill,
@@ -914,8 +939,10 @@ def render_svg_section(
             font_size=font_size, y=2 * block_height if invert else height
         )
     )
+    # Use a local variable to hold join result, prevent multiple recomputation if debugging etc
+    content_str = "\n".join(content)
     result = SVG.format(
-        "\n".join(content),
+        content_str,
         javascript=javascript,
         width=width,
         height=top + height + block_height,
