@@ -66,9 +66,7 @@ class EdgeDatabaseStorageProviderInterface:
         raise NotImplementedError()
 
 
-class InMemoryEdgeDatabaseStorageProvider(
-    EdgeDatabaseStorageProviderInterface
-):
+class InMemoryEdgeDatabaseStorageProvider(EdgeDatabaseStorageProviderInterface):
 
     def __init__(self, schema) -> None:
         super().__init__()
@@ -117,7 +115,7 @@ class InMemoryEdgeDatabaseStorageProvider(
 
     def dump_state(self) -> object:
         return {
-            "db": copy.deepcopy(self.db.dbdata),
+            "db": self.db.dbdata.copy(),
             "next_id_to_return": self.next_id_to_return,
         }
 
