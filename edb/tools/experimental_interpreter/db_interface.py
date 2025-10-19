@@ -66,9 +66,7 @@ class EdgeDatabaseStorageProviderInterface:
         raise NotImplementedError()
 
 
-class InMemoryEdgeDatabaseStorageProvider(
-    EdgeDatabaseStorageProviderInterface
-):
+class InMemoryEdgeDatabaseStorageProvider(EdgeDatabaseStorageProviderInterface):
 
     def __init__(self, schema) -> None:
         super().__init__()
@@ -128,9 +126,9 @@ class InMemoryEdgeDatabaseStorageProvider(
     def project(
         self, id: e.EdgeID, tp: e.QualifiedName, prop: str
     ) -> e.MultiSetVal:
-        if id in self.db.dbdata.keys():
+        try:
             props = self.db.dbdata[id].data
-        else:
+        except KeyError:
             raise ValueError(f"ID {id} not found in database")
         if prop in props:
             return props[prop]
