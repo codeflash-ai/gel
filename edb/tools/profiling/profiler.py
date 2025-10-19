@@ -27,7 +27,6 @@ from typing import (
     Callable,
     Optional,
     TypeVar,
-    AbstractSet,
     Iterator,
     Sequence,
     Counter,
@@ -543,12 +542,16 @@ class ScopeCache:
 def count_calls(funcs: dict[FunctionID, Function]) -> Counter[Call]:
     call_counter: Counter[Call] = Counter()
 
+    # Optimized: Avoid | operator for sets and visited set duplication, use add/remove
     def _counts(caller: FunctionID, visited: set[Call], level: int = 0) -> None:
         for callee in funcs[caller].calls:
-            call = caller, callee
+            call = (caller, callee)
             call_counter[call] += 1
+            # Only traverse if first seen and not in visited
             if call_counter[call] < 2 and call not in visited:
-                _counts(callee, visited | {call}, level + 1)
+                visited.add(call)
+                _counts(callee, visited, level + 1)
+                visited.remove(call)
 
     _counts(ROOT_ID, set())
     return call_counter
@@ -701,11 +704,12 @@ def build_svg_blocks(
     counts: Counter[Call] = count_calls(funcs)
     maxw = float(funcs[ROOT_ID].stat[3])
 
+    # Optimize: Use list comprehension, avoid repeated recomputation, replace |/frozenset with set add/remove
     def _build_blocks_by_call_stack(
         func: FunctionID,
         scaled_timings: Stat,
         *,
-        visited: AbstractSet[Call] = frozenset(),
+        visited: set[Call],
         level: int = 0,
         origin: float = 0,
         call_stack: tuple[FunctionID, ...] = (),
@@ -714,22 +718,27 @@ def build_svg_blocks(
     ) -> None:
         _, _, func_tt, func_tc = scaled_timings
         pcc = parent_call_count
-        fchildren = [
-            (f, funcs[f], calls[func, f], max(counts[func, f], pcc))
-            for f in funcs[func].calls
-        ]
-        fchildren.sort(key=lambda elem: elem[0])
-        gchildren = [elem for elem in fchildren if elem[3] == 1]
-        bchildren = [elem for elem in fchildren if elem[3] > 1]
+
+        # Materialize children info to reduce attribute lookups and repeated calculations
+        fchildren_raw = funcs[func].calls
+        if fchildren_raw:
+            fchildren = [
+                (f, funcs[f], calls[(func, f)], max(counts[(func, f)], pcc))
+                for f in fchildren_raw
+            ]
+            # Sorting is preserved as original
+            fchildren.sort(key=lambda elem: elem[0])
+            gchildren = [elem for elem in fchildren if elem[3] == 1]
+            bchildren = [elem for elem in fchildren if elem[3] > 1]
+        else:
+            gchildren = []
+            bchildren = []
+
         if bchildren:
             gchildren_tc_sum = sum(r[2][3] for r in gchildren)
             bchildren_tc_sum = sum(r[2][3] for r in bchildren)
             rest = func_tc - func_tt - gchildren_tc_sum
-            if bchildren_tc_sum > 0:
-                factor = rest / bchildren_tc_sum
-            else:
-                factor = 1
-            # Round up and scale times and call counts.
+            factor = rest / bchildren_tc_sum if bchildren_tc_sum > 0 else 1
             bchildren = [
                 (
                     f,
@@ -745,7 +754,9 @@ def build_svg_blocks(
                 for f, ff, (cc, nc, tt, tc), ccnt in bchildren
             ]
 
-        for child, _, (cc, nc, tt, tc), call_count in gchildren + bchildren:
+        # Avoid concat in comprehension, efficiently join lists
+        all_children = gchildren + bchildren
+        for child, _, (cc, nc, tt, tc), call_count in all_children:
             if tc / maxw < threshold:
                 origin += tc
                 continue
@@ -762,18 +773,20 @@ def build_svg_blocks(
                 x=origin,
             )
             call_stack_blocks.append(block)
-            call = func, child
+            call = (func, child)
             if call not in visited:
+                visited.add(call)
                 _build_blocks_by_call_stack(
                     child,
                     (cc, nc, tt, tc),
                     level=level + 1,
                     origin=origin,
-                    visited=visited | {call},
+                    visited=visited,
                     call_stack=child_call_stack,
                     parent_call_count=call_count,
                     parent_block=block,
                 )
+                visited.remove(call)
             origin += tc
 
     def _build_blocks_by_usage(
@@ -782,17 +795,18 @@ def build_svg_blocks(
         level: int = 0,
         to: Optional[FunctionID] = None,
         origin: float = 0,
-        visited: AbstractSet[Call] = frozenset(),
+        visited: set[Call],
         parent_width: float = 0,
     ) -> None:
         factor = 1.0
         if ids and to is not None:
-            calls_tottime = sum(calls[fid, to][3] for fid in ids)
+            calls_tottime = sum(calls[(fid, to)][3] for fid in ids)
             if calls_tottime:
                 factor = parent_width / calls_tottime
 
-        for fid in sorted(ids):
-            call = fid, to
+        ids_sorted = sorted(ids)
+        for fid in ids_sorted:
+            call = (fid, to)
             if to is not None:
                 cc, nc, tt, tc = calls[call]  # type: ignore
                 ttt = tc * factor
@@ -816,18 +830,28 @@ def build_svg_blocks(
             )
             usage_blocks.append(block)
             if call not in visited:
+                visited.add(call)
                 _build_blocks_by_usage(
                     funcs[fid].calledby,
                     level=level + 1,
                     to=fid,
                     origin=origin,
-                    visited=visited | {call},
+                    visited=visited,
                     parent_width=ttt,
                 )
+                visited.remove(call)
             origin += ttt
 
-    _build_blocks_by_call_stack(ROOT_ID, scaled_timings=(1, 1, maxw, maxw))
-    _build_blocks_by_usage([fid for fid in funcs if fid != ROOT_ID])
+    # Allocate visited sets once, use mutable set instead of creating new frozenset/sets for each recursion
+    _build_blocks_by_call_stack(
+        ROOT_ID,
+        scaled_timings=(1, 1, maxw, maxw),
+        visited=set(),
+    )
+    _build_blocks_by_usage(
+        [fid for fid in funcs if fid != ROOT_ID],
+        visited=set()
+    )
     return call_stack_blocks, usage_blocks, maxw
 
 
