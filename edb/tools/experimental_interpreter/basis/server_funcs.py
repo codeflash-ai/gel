@@ -118,7 +118,4 @@ def get_default_func_impl_for_function(
 def get_default_func_impl_for_cast(
     from_tp: e.Tp, to_tp: e.Tp
 ) -> Callable[[e.Val], e.Val]:
-    def default_impl(arg: e.Val) -> e.Val:
-        return type_cast(to_tp, arg)
-
-    return default_impl
+    return lambda arg: type_cast(to_tp, arg)
