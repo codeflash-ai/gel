@@ -34,6 +34,10 @@ from edb.common import debug
 
 from . import settings
 
+_true = elements.lang.Constants.true
+
+_false = elements.lang.Constants.false
+
 #: Maximum level of nested structures that we can serialize.
 #: If we reach it - we'll just stop traversing the objects
 #: tree at that point and yield 'elements.base.OverflowBarier'
@@ -307,9 +311,9 @@ def serialize_none(obj, *, ctx):
 @no_ref_detect
 def serialize_bool(obj, *, ctx):
     if obj:
-        return elements.lang.Constants.true
+        return _true
     else:
-        return elements.lang.Constants.false
+        return _false
 
 
 @serializer.register(int)
