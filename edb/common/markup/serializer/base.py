@@ -34,6 +34,8 @@ from edb.common import debug
 
 from . import settings
 
+_MSG_TPL = 'No markup serializer for {!r} context'
+
 #: Maximum level of nested structures that we can serialize.
 #: If we reach it - we'll just stop traversing the objects
 #: tree at that point and yield 'elements.base.OverflowBarier'
@@ -277,9 +279,13 @@ def serialize_exception(obj, *, ctx):
 
 @serializer.register(exceptions.ExceptionContext)
 def serialize_generic_exception_context(obj, *, ctx):
-    msg = 'No markup serializer for {!r} context'.format(obj)
-    return elements.lang.ExceptionContext(
-        title=obj.title, body=[elements.doc.Text(text=msg)])
+    msg = _MSG_TPL.format(obj)
+    text_element = elements.doc.Text.__new__(elements.doc.Text)
+    text_element.text = msg
+    exc_ctx = elements.lang.ExceptionContext.__new__(elements.lang.ExceptionContext)
+    exc_ctx.title = obj.title
+    exc_ctx.body = (text_element,)
+    return exc_ctx
 
 
 @serializer.register(exceptions.DefaultExceptionContext)
