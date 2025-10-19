@@ -23,7 +23,18 @@ from __future__ import annotations
 
 
 def get_patch_level(num_patches: int) -> int:
-    return sum(p.startswith('edgeql+schema') for p, _ in PATCHES[:num_patches])
+    # Use generator expression with built-in sum for memory and speed efficiency.
+    # Avoid function call overhead of p.startswith for all records if num_patches is small.
+    end = min(num_patches, len(PATCHES))
+    if end == 0:
+        return 0
+    target_prefix = 'edgeql+schema'
+    # Unroll generator to for-loop for optimal performance in short PATCHES-list cases.
+    count = 0
+    for i in range(end):
+        if PATCHES[i][0].startswith(target_prefix):
+            count += 1
+    return count
 
 
 def get_version_key(num_patches: int) -> str:
@@ -65,5 +76,4 @@ The current kinds are:
  * sql-introspection - refresh all sql introspection views
  * ...+testmode - only run the patch in testmode. Works with any patch kind.
 """
-PATCHES: list[tuple[str, str]] = [
-]
+PATCHES: list[tuple[str, str]] = []
