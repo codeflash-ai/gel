@@ -6,21 +6,31 @@ from ..data import data_ops as e
 def find_all_subtypes_of_tp_in_schema(
     schema: e.DBSchema, tp: e.QualifiedName
 ) -> Sequence[e.QualifiedName]:
-    checked_tps = []
+    checked_tps_set = set()  # Keeps fast lookup for visited nodes
+    checked_tps = []  # Maintains original order for return value
     frontier = [tp]
 
-    while len(frontier) > 0:
+    # Build a reverse mapping: {supertype: [subtype list]}
+    # This lets us quickly find all direct subtypes of any type.
+    # Precompute because repeated nested lookups are extremely expensive.
+    super_to_sub = {}
+    for subtype, supertypes in schema.subtyping_relations.items():
+        for supertype in supertypes:
+            if supertype not in super_to_sub:
+                super_to_sub[supertype] = []
+            super_to_sub[supertype].append(subtype)
+
+    while frontier:
         next_tp = frontier.pop()
-        if next_tp in checked_tps:
+        if next_tp in checked_tps_set:
             continue
+        checked_tps_set.add(next_tp)
         checked_tps.append(next_tp)
-        frontier.extend(
-            [
-                subtype
-                for subtype in schema.subtyping_relations
-                if next_tp in schema.subtyping_relations[subtype]
-            ]
-        )
+
+        # Add direct subtypes to the frontier
+        subtypes = super_to_sub.get(next_tp)
+        if subtypes:
+            frontier.extend(subtypes)
 
     return checked_tps
 
