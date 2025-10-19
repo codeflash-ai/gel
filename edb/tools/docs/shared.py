@@ -27,6 +27,8 @@ from sphinx.directives import code as s_code
 
 from sphinx import errors as s_errors
 
+_CodeBlock_cache = {}
+
 
 class EdgeSphinxExtensionError(s_errors.ExtensionError):
     pass
@@ -55,25 +57,28 @@ class InlineCodeRole:
 
 
 def make_CodeBlock(parent):
-    class CodeBlock(parent):
+    try:
+        CodeBlock = _CodeBlock_cache[parent]
+    except KeyError:
 
-        option_spec = s_code.CodeBlock.option_spec.copy()
-        option_spec.update({
-            'version-lt': d_directives.unchanged_required
-        })
+        class CodeBlock(parent):
 
-        def run(self):
-            literal = super().run()
-            if 'version-lt' in self.options:
-                if len(self.options) > 1:
-                    raise EdgeSphinxExtensionError(
-                        'other options not allowed if :version-lt: option '
-                        'is provided, put other options on latest version '
-                        'code block'
-                    )
-                literal[0]['version_lt'] = self.options['version-lt']
-            return literal
+            option_spec = s_code.CodeBlock.option_spec.copy()
+            option_spec.update({'version-lt': d_directives.unchanged_required})
 
+            def run(self):
+                literal = super().run()
+                if 'version-lt' in self.options:
+                    if len(self.options) > 1:
+                        raise EdgeSphinxExtensionError(
+                            'other options not allowed if :version-lt: option '
+                            'is provided, put other options on latest version '
+                            'code block'
+                        )
+                    literal[0]['version_lt'] = self.options['version-lt']
+                return literal
+
+        _CodeBlock_cache[parent] = CodeBlock
     return CodeBlock
 
 
