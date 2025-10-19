@@ -30,11 +30,23 @@ def label_to_str(lbl: Label) -> str:
 
 
 def objectval_to_json_like(objv: ObjectVal) -> dict[str, json_like]:
-    return {
-        label_to_str(k): multi_set_val_to_json_like(v[1])
-        for (k, v) in objv.val.items()
-        if isinstance(v[0], Visible)
-    }
+    # Optimize the iteration by localizing bound methods
+    val_items = objv.val.items()  # store .items() result locally
+    label_to_str_fn = label_to_str  # localize function
+    multi_set_val_to_json_like_fn = (
+        multi_set_val_to_json_like  # localize function
+    )
+    visible_type = Visible  # localize type check
+
+    # Use a pre-sized list + dict to avoid generator overhead in tight loop
+    output: dict[str, json_like] = {}
+
+    # Use local variables, single pass over items (no unnecessary generator creation)
+    for k, v in val_items:
+        # type is checked before calling methods
+        if type(v[0]) is visible_type:
+            output[label_to_str_fn(k)] = multi_set_val_to_json_like_fn(v[1])
+    return output
 
 
 def val_to_json_like(v: Val) -> json_like:
@@ -79,9 +91,7 @@ def typed_objectval_to_json_like(
     return result
 
 
-def typed_val_to_json_like(
-    v: Val, tp: e.Tp, dbschema: e.DBSchema
-) -> json_like:
+def typed_val_to_json_like(v: Val, tp: e.Tp, dbschema: e.DBSchema) -> json_like:
     match v:
         case e.ScalarVal(s_tp, v):
             if s_tp == e.ScalarTp(e.QualifiedName(["std", "json"])):
