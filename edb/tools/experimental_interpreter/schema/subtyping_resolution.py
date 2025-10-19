@@ -29,12 +29,14 @@ def find_all_supertypes_of_tp_in_schema(
     schema: e.DBSchema, tp: e.QualifiedName
 ) -> Sequence[e.QualifiedName]:
     checked_tps = []
+    seen = set()  # Local seen set for fast membership checks
     frontier = [tp]
 
-    while len(frontier) > 0:
+    while frontier:
         next_tp = frontier.pop()
-        if next_tp in checked_tps:
+        if next_tp in seen:
             continue
+        seen.add(next_tp)
         checked_tps.append(next_tp)
         frontier.extend(schema.subtyping_relations[next_tp])
 
