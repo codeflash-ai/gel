@@ -548,7 +548,9 @@ def count_calls(funcs: dict[FunctionID, Function]) -> Counter[Call]:
             call = caller, callee
             call_counter[call] += 1
             if call_counter[call] < 2 and call not in visited:
-                _counts(callee, visited | {call}, level + 1)
+                visited.add(call)
+                _counts(callee, visited, level + 1)
+                visited.remove(call)
 
     _counts(ROOT_ID, set())
     return call_counter
