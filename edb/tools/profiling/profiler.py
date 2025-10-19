@@ -561,6 +561,7 @@ def find_singledispatch_wrapper(
 
     Raises LookupError if not found.
     """
+    # Move the compiled regex creation outside hot loops
     if regular_location:
         functools_path = re.compile(r"python3.\d+/functools.py$")
         dispatch_name = "dispatch"
@@ -570,25 +571,19 @@ def find_singledispatch_wrapper(
         dispatch_name = "dispatch"
         wrapper_name = "sd_wrapper"
 
-    for (modpath, _lineno, funcname), (_, _, _, _, callers) in stats.items():
-        if funcname != dispatch_name:
-            continue
+    # Pre-load keys for faster repeated local lookup
+    dispatch_items = [
+        ((modpath, lineno, funcname), stat)
+        for (modpath, lineno, funcname), stat in stats.items()
+        if funcname == dispatch_name and functools_path.search(modpath)
+    ]
 
-        m = functools_path.search(modpath)
-        if not m:
-            continue
-
-        # Using this opportunity, we're figuring out which `wrapper` from
-        # functools in the trace is the singledispatch `wrapper` (there
-        # are three more others in functools.py).
-        for caller_modpath, caller_lineno, caller_funcname in callers:
+    for (modpath, _lineno, _funcname), (_, _, _, _, callers) in dispatch_items:
+        # Iterate callers directly for matching wrapper_name
+        for caller in callers:
+            caller_modpath, caller_lineno, caller_funcname = caller
             if caller_funcname == wrapper_name:
-                m = functools_path.search(modpath)
-                if not m:
-                    continue
-
                 return (caller_modpath, caller_lineno, caller_funcname)
-
         raise LookupError("singledispatch.dispatch without wrapper?")
 
     raise LookupError("No singledispatch use in provided stats")
