@@ -22,7 +22,6 @@ from typing import Any, Optional, Iterable, Sequence
 from dataclasses import dataclass
 
 import itertools
-import textwrap
 
 from . import base
 from .visitor import NodeVisitor
@@ -44,7 +43,7 @@ class SourceGenerator(NodeVisitor):
         self,
         indent_with: str = ' ' * 4,
         add_line_information: bool = False,
-        pretty: bool = True
+        pretty: bool = True,
     ) -> None:
         self.result = []
         self.indent_with = indent_with
@@ -99,7 +98,8 @@ class SourceGenerator(NodeVisitor):
         for chunk in chunks:
             if not isinstance(chunk, str):
                 raise ValueError(
-                    'invalid text chunk in codegen: {!r}'.format(chunk))
+                    'invalid text chunk in codegen: {!r}'.format(chunk)
+                )
             self.result.append(chunk)
 
     def visit_list(
@@ -109,7 +109,7 @@ class SourceGenerator(NodeVisitor):
         separator: str = ',',
         terminator: Optional[str] = None,
         newlines: bool = True,
-        **kwargs: Any
+        **kwargs: Any,
     ) -> None:
         # terminator overrides separator setting
         #
@@ -140,12 +140,22 @@ class SourceGenerator(NodeVisitor):
         indent_with: str = ' ' * 4,
         add_line_information: bool = False,
         pretty: bool = True,
-        **kwargs: Any
+        **kwargs: Any,
     ) -> str:
-        generator = cls(indent_with, add_line_information,  # type: ignore
-                        pretty=pretty, **kwargs)
+        generator = cls(
+            indent_with,
+            add_line_information,  # type: ignore
+            pretty=pretty,
+            **kwargs,
+        )
         generator.visit(node)
         return generator.finish()
 
     def indent_text(self, text: str) -> str:
-        return textwrap.indent(text, self.indent_with * self.indentation)
+        prefix = self.indent_with * self.indentation
+        if not text or prefix == "":
+            return text
+        lines = text.splitlines(True)
+        return ''.join(
+            [(prefix + line if line.strip() else line) for line in lines]
+        )
