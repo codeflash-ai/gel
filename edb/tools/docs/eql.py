@@ -232,6 +232,10 @@ from sphinx.ext.intersphinx import InventoryAdapter
 
 from . import shared
 
+_FILTER_TARGET_RE = re.compile(r'''(?xi)
+    ^ \s*\bSET\s+OF\s+ | \s*\bOPTIONAL\s+
+''')
+
 
 class EQLField(s_docfields.Field):
 
@@ -931,18 +935,22 @@ class EQLTypeXRef(s_roles.XRefRole):
 
     @staticmethod
     def filter_target(target):
-        new_target = re.sub(r'''(?xi)
-            ^ \s*\bSET\s+OF\s+ | \s*\bOPTIONAL\s+
-        ''', '', target)
+        # Use the precompiled regex for more efficient repeated invocation.
+        new_target = _FILTER_TARGET_RE.sub('', target)
 
-        if '<' in new_target:
-            new_target, _ = new_target.split('<', 1)
+        # Optimize '<' check and split using str.partition, which avoids
+        # raising ValueError or searching for the character twice.
+        # This is slightly more efficient and idiomatic in this use.
+        before, sep, _ = new_target.partition('<')
+        if sep:
+            new_target = before
 
         return new_target
 
     def process_link(self, env, refnode, has_explicit_title, title, target):
         new_target = self.filter_target(target)
         if not has_explicit_title:
+            # No performance gain possible here, keep as original.
             title = target.replace('-', ' ')
         return super().process_link(
             env, refnode, has_explicit_title, title, new_target)
