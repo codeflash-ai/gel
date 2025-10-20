@@ -442,10 +442,7 @@ class BaseEQLDirective(s_directives.ObjectDescription):
 
     @staticmethod
     def strip_ws(text):
-        text = text.strip()
-        text = ' '.join(
-            line.strip() for line in text.split() if line.strip())
-        return text
+        return ' '.join(text.strip().split())
 
     def _validate_and_extract_summary(self, node):
         desc_cnt = None
