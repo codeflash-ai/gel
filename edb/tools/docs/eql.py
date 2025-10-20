@@ -232,6 +232,8 @@ from sphinx.ext.intersphinx import InventoryAdapter
 
 from . import shared
 
+_eql_type_xref_sub = re.compile(r'''(?xi) ^ \s*\bSET\s+OF\s+ | \s*\bOPTIONAL\s+ ''')
+
 
 class EQLField(s_docfields.Field):
 
@@ -931,12 +933,11 @@ class EQLTypeXRef(s_roles.XRefRole):
 
     @staticmethod
     def filter_target(target):
-        new_target = re.sub(r'''(?xi)
-            ^ \s*\bSET\s+OF\s+ | \s*\bOPTIONAL\s+
-        ''', '', target)
+        new_target = _eql_type_xref_sub.sub('', target)
 
+        # Use str.partition for efficiency; avoids creating extra list
         if '<' in new_target:
-            new_target, _ = new_target.split('<', 1)
+            new_target = new_target.partition('<')[0]
 
         return new_target
 
