@@ -260,10 +260,13 @@ class BaseMetric:
         /,
     ) -> None:
         self._registry = registry
-        name = self._augment_metric_name(name)
+        # Avoid multiple lookups for self._registry._prefix and unit.value
+        _prefix = self._registry._prefix
+        if _prefix is not None:
+            name = f'{_prefix}_{name}'
         self._validate_name(name)
         if unit is not None:
-            name += '_' + unit.value
+            name = f'{name}_{unit.value}'
         self._name = name
         self._desc = desc
         self._unit = unit
@@ -305,15 +308,20 @@ class BaseMetric:
         if not label_filters:
             return lambda _: True
 
+        # Instead of list comprehension with index lookup and dict iteration,
+        # precompute a mapping dict from label -> index. This gives O(1) index lookup
+        # and speeds up large label sets.
+        label_to_idx = {label: idx for idx, label in enumerate(labels)}
         try:
             label_by_idx = [
-                (labels.index(label), label_val)
+                (label_to_idx[label], label_val)
                 for label, label_val in label_filters.items()
             ]
-        except ValueError:
+        except KeyError:
             return lambda _: False
 
         def label_filter(label_values: tuple[str, ...]) -> bool:
+            # In the inner loop, unpack for speed
             for idx, label_val in label_by_idx:
                 if label_values[idx] != label_val:
                     return False
