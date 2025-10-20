@@ -32,11 +32,17 @@ def distance(s: str, t: str) -> int:
     ri = list(range(m + 1))
 
     for i in range(1, n + 1):
-        ri_1, ri = ri, [i] + [0] * m
+        prev_diag = ri[0]
+        ri[0] = i
+        ti = t[i - 1]
 
         for j in range(1, m + 1):
-            ri[j] = min(ri_1[j] + 1,
-                        ri[j - 1] + 1,
-                        ri_1[j - 1] + int(s[j - 1] != t[i - 1]))
+            temp = ri[j]
+            ri[j] = min(
+                ri[j] + 1,
+                ri[j - 1] + 1,
+                prev_diag + (0 if s[j - 1] == ti else 1),
+            )
+            prev_diag = temp
 
     return ri[m]
