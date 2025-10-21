@@ -46,7 +46,11 @@ class ScalarTp:
 
 
 def BoolTp():
-    return ScalarTp(QualifiedName(["std", "bool"]))
+    # Avoid recreating the QualifiedName and ScalarTp objects on every call
+    # Use function attribute for safe one-time initialization
+    if not hasattr(BoolTp, "_singleton"):
+        BoolTp._singleton = ScalarTp(QualifiedName(["std", "bool"]))
+    return BoolTp._singleton
 
 
 def StrTp():
@@ -870,9 +874,7 @@ class RTVal(NamedTuple):
 @dataclass
 class TcCtx:
     schema: DBSchema
-    current_module: tuple[
-        str, ...
-    ]  # current module name, TODO: nested modules
+    current_module: tuple[str, ...]  # current module name, TODO: nested modules
     varctx: dict[str, ResultTp]
 
 
