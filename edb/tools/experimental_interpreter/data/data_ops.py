@@ -11,6 +11,8 @@ from dataclasses import dataclass
 
 from enum import Enum
 
+_INT_TP_CACHE = None
+
 
 # LABELS
 
@@ -54,7 +56,10 @@ def StrTp():
 
 
 def IntTp():
-    return ScalarTp(QualifiedName(["std", "int64"]))
+    global _INT_TP_CACHE
+    if _INT_TP_CACHE is None:
+        _INT_TP_CACHE = ScalarTp(QualifiedName(["std", "int64"]))
+    return _INT_TP_CACHE
 
 
 def UuidTp():
@@ -870,9 +875,7 @@ class RTVal(NamedTuple):
 @dataclass
 class TcCtx:
     schema: DBSchema
-    current_module: tuple[
-        str, ...
-    ]  # current module name, TODO: nested modules
+    current_module: tuple[str, ...]  # current module name, TODO: nested modules
     varctx: dict[str, ResultTp]
 
 
