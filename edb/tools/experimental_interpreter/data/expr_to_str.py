@@ -5,6 +5,10 @@ from typing import Any
 from . import data_ops as e
 from . import expr_ops as eops
 
+_QualifiedName = e.QualifiedName
+
+_UnqualifiedName = e.UnqualifiedName
+
 
 def show_card(card: e.Cardinal) -> str:
     match card:
@@ -27,9 +31,12 @@ def show_qname(name: e.QualifiedName) -> str:
 
 
 def show_raw_name(name: e.QualifiedName | e.UnqualifiedName) -> str:
-    if isinstance(name, e.QualifiedName):
-        return show_qname(name)
+    # Use cached types for faster isinstance
+    if isinstance(name, _QualifiedName):
+        # Inline the join to avoid function call overhead
+        return "::".join(name.names)
     else:
+        # Inline attribute lookup for minimal overhead
         return name.name
 
 
