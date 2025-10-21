@@ -50,7 +50,9 @@ def BoolTp():
 
 
 def StrTp():
-    return ScalarTp(QualifiedName(["std", "str"]))
+    if not hasattr(StrTp, '_cached'):
+        StrTp._cached = ScalarTp(QualifiedName(["std", "str"]))
+    return StrTp._cached
 
 
 def IntTp():
@@ -870,9 +872,7 @@ class RTVal(NamedTuple):
 @dataclass
 class TcCtx:
     schema: DBSchema
-    current_module: tuple[
-        str, ...
-    ]  # current module name, TODO: nested modules
+    current_module: tuple[str, ...]  # current module name, TODO: nested modules
     varctx: dict[str, ResultTp]
 
 
