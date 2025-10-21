@@ -103,13 +103,12 @@ def show_result_tp(tp: e.ResultTp) -> str:
 
 
 def show_label(lbl: e.Label) -> str:
-    match lbl:
-        case e.StrLabel(label=s_label):
-            return s_label
-        case e.LinkPropLabel(label=l_label):
-            return "@" + l_label
-        case _:
-            raise ValueError('Unimplemented', lbl)
+    if type(lbl) is e.StrLabel:
+        return lbl.label
+    elif type(lbl) is e.LinkPropLabel:
+        return "@" + lbl.label
+    else:
+        raise ValueError('Unimplemented', lbl)
 
 
 def show_scalar_val(val: e.ScalarVal) -> str:
