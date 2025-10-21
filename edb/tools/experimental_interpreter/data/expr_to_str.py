@@ -315,15 +315,15 @@ def show_expr(expr: e.Expr) -> str:
 
 
 def show_arg_mod(mod: e.ParamModifier) -> str:
-    match mod:
-        case e.ParamSingleton():
-            return "1"
-        case e.ParamOptional():
-            return "?"
-        case e.ParamSetOf():
-            return "*"
-        case _:
-            raise ValueError('Unimplemented', mod)
+    mod_type = type(mod)
+    if mod_type is e.ParamSingleton:
+        return "1"
+    elif mod_type is e.ParamOptional:
+        return "?"
+    elif mod_type is e.ParamSetOf:
+        return "*"
+    else:
+        raise ValueError('Unimplemented', mod)
 
 
 def show_arg_ret_type(tp: e.FunArgRetType) -> str:
