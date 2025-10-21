@@ -5,21 +5,22 @@ from typing import Any
 from . import data_ops as e
 from . import expr_ops as eops
 
+_CARDINAL_STR_MAP = {
+    e.ZeroCardinal: "0",
+    e.OneCardinal: "1",
+    e.InfiniteCardinal: "∞",
+}
+
 
 def show_card(card: e.Cardinal) -> str:
-    match card:
-        case e.ZeroCardinal():
-            return "0"
-        case e.OneCardinal():
-            return "1"
-        case e.InfiniteCardinal():
-            return "∞"
-        case _:
-            raise ValueError('Unimplemented', card)
+    typ = type(card)
+    if typ in _CARDINAL_STR_MAP:
+        return _CARDINAL_STR_MAP[typ]
+    raise ValueError('Unimplemented', card)
 
 
 def show_cmmode(mode: e.CMMode) -> str:
-    return "[" + show_card(mode.lower) + "," + show_card(mode.upper) + "]"
+    return f"[{show_card(mode.lower)},{show_card(mode.upper)}]"
 
 
 def show_qname(name: e.QualifiedName) -> str:
