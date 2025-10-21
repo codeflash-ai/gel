@@ -11,6 +11,10 @@ from dataclasses import dataclass
 
 from enum import Enum
 
+_BOOL_TRUE = None
+
+_BOOL_FALSE = None
+
 
 # LABELS
 
@@ -392,6 +396,17 @@ def StrVal(val: str):
 
 
 def BoolVal(val: bool):
+    # Use singletons for True/False, falls back for any other bool (including non-standard bools, if present)
+    global _BOOL_TRUE, _BOOL_FALSE
+    if _BOOL_TRUE is None or _BOOL_FALSE is None:
+        _BOOL_TRUE = ScalarVal(BoolTp(), True)
+        _BOOL_FALSE = ScalarVal(BoolTp(), False)
+    # Return the precomputed singleton object for True/False
+    if val is True:
+        return _BOOL_TRUE
+    elif val is False:
+        return _BOOL_FALSE
+    # If somehow a non-standard bool value leaks in (shouldn't), fallback to instantiation
     return ScalarVal(BoolTp(), val)
 
 
@@ -870,9 +885,7 @@ class RTVal(NamedTuple):
 @dataclass
 class TcCtx:
     schema: DBSchema
-    current_module: tuple[
-        str, ...
-    ]  # current module name, TODO: nested modules
+    current_module: tuple[str, ...]  # current module name, TODO: nested modules
     varctx: dict[str, ResultTp]
 
 
