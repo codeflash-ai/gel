@@ -7,15 +7,15 @@ from . import expr_ops as eops
 
 
 def show_card(card: e.Cardinal) -> str:
-    match card:
-        case e.ZeroCardinal():
-            return "0"
-        case e.OneCardinal():
-            return "1"
-        case e.InfiniteCardinal():
-            return "∞"
-        case _:
-            raise ValueError('Unimplemented', card)
+    t = type(card)
+    if t is e.ZeroCardinal:
+        return "0"
+    elif t is e.OneCardinal:
+        return "1"
+    elif t is e.InfiniteCardinal:
+        return "∞"
+    else:
+        raise ValueError('Unimplemented', card)
 
 
 def show_cmmode(mode: e.CMMode) -> str:
