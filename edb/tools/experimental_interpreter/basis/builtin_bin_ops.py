@@ -12,6 +12,10 @@ from .built_ins import lift_unary_scalar_op, lift_binary_scalar_op
 import fnmatch
 import operator
 
+_BOOLVAL_TRUE_LIST = [BoolVal(True)]
+
+_BOOLVAL_FALSE_LIST = [BoolVal(False)]
+
 
 def add_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
     match arg:
@@ -32,7 +36,10 @@ def subtract_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
 def eq_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
     match arg:
         case [[v1], [v2]]:
-            return [BoolVal(eops.val_eq(v1, v2))]
+            if eops.val_eq(v1, v2):
+                return _BOOLVAL_TRUE_LIST
+            else:
+                return _BOOLVAL_FALSE_LIST
     raise FunCallErr(arg)
 
 
@@ -49,10 +56,10 @@ def not_eq_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
 def opt_eq_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
     match arg:
         case [[], []]:
-            return [BoolVal(True)]
+            return _BOOLVAL_TRUE_LIST
         case [l1, l2]:
             if len(l1) == 0 or len(l2) == 0:
-                return [BoolVal(False)]
+                return _BOOLVAL_FALSE_LIST
             else:
                 return eq_impl(arg)
     raise FunCallErr()
@@ -94,8 +101,9 @@ def in_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
             if isinstance(singleton, RefVal):
                 assert all(isinstance(v, RefVal) for v in l)
                 return [
-                    BoolVal(singleton.refid in [v.refid   # type: ignore
-                                                for v in l])
+                    BoolVal(
+                        singleton.refid in [v.refid for v in l]  # type: ignore
+                    )
                 ]
             elif all(isinstance(v, e.ScalarVal) for v in l) and isinstance(
                 singleton, e.ScalarVal
