@@ -115,15 +115,16 @@ def show_label(lbl: e.Label) -> str:
 def show_scalar_val(val: e.ScalarVal) -> str:
     tp = val.tp
     v = val.val
-    match tp.name:
-        case e.QualifiedName(["std", "str"]):
+    tpname = tp.name
+    names = tpname.names
+
+    # Fast-path via direct attribute access and tuple comparison
+    if len(names) == 2 and names[0] == "std":
+        if names[1] == "str":
             return '"' + v + '"'
-        case e.QualifiedName(["std", "int64"]):
+        elif names[1] == "int64" or names[1] == "bool":
             return str(v)
-        case e.QualifiedName(["std", "bool"]):
-            return str(v)
-        case _:
-            return show_qname(tp.name) + "(" + str(v) + ")"
+    return show_qname(tpname) + "(" + str(v) + ")"
 
 
 def show_edge_database_select_filter(
