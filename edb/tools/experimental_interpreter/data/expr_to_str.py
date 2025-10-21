@@ -351,16 +351,13 @@ def show_func_defs(funcdefs: list[e.FuncDef]) -> str:
 
 
 def show_constraint(constraint: e.Constraint) -> str:
-    match constraint:
-        case e.ExclusiveConstraint(name=name, delegated=delegated):
-            return (
-                "exclusive("
-                + name
-                + ")"
-                + (", delegated" if delegated else "")
-            )
-        case _:
-            raise ValueError('Unimplemented', constraint)
+    if type(constraint) is e.ExclusiveConstraint:
+        return (
+            f"exclusive({constraint.name})"
+            + (", delegated" if constraint.delegated else "")
+        )
+    else:
+        raise ValueError('Unimplemented', constraint)
 
 
 def show_me(me: e.ModuleEntity) -> str:
