@@ -11,6 +11,8 @@ from dataclasses import dataclass
 
 from enum import Enum
 
+_bool_tp = None
+
 
 # LABELS
 
@@ -392,7 +394,10 @@ def StrVal(val: str):
 
 
 def BoolVal(val: bool):
-    return ScalarVal(BoolTp(), val)
+    global _bool_tp
+    if _bool_tp is None:
+        _bool_tp = BoolTp()
+    return ScalarVal(_bool_tp, val)
 
 
 EdgeID = int
@@ -870,9 +875,7 @@ class RTVal(NamedTuple):
 @dataclass
 class TcCtx:
     schema: DBSchema
-    current_module: tuple[
-        str, ...
-    ]  # current module name, TODO: nested modules
+    current_module: tuple[str, ...]  # current module name, TODO: nested modules
     varctx: dict[str, ResultTp]
 
 
