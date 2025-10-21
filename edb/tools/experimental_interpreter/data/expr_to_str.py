@@ -368,16 +368,21 @@ def show_me(me: e.ModuleEntity) -> str:
         case e.ModuleEntityTypeDef(
             typedef=typedef, is_abstract=is_abstract, constraints=constraints
         ):
-            auxiliary = ""
-            auxiliary += "abstract, " if is_abstract else ""
-            auxiliary += (
-                "constraints = ["
-                + ", ".join(show_constraint(c) for c in constraints)
-                + "], "
-                if constraints
-                else ""
-            )
-            auxiliary = "\n    " + auxiliary if auxiliary else ""
+            # Build auxiliary string efficiently
+            has_constraints = bool(constraints)
+            if is_abstract or has_constraints:
+                # Preallocate list for pieces to join
+                aux_pieces = []
+                if is_abstract:
+                    aux_pieces.append("abstract")
+                if has_constraints:
+                    # List comprehension is faster than generator for join on known-length
+                    constraints_str = ", ".join([show_constraint(c) for c in constraints])
+                    aux_pieces.append(f"constraints = [{constraints_str}]")
+                # Use ', '.join in a single place
+                auxiliary = "\n    " + ", ".join(aux_pieces) + ", "
+            else:
+                auxiliary = ""
             base = show_tp(typedef)
             return base + auxiliary
         case e.ModuleEntityFuncDef(funcdefs=funcdefs):
@@ -387,9 +392,10 @@ def show_me(me: e.ModuleEntity) -> str:
 
 
 def show_module(dbschema: e.DBModule) -> str:
-    return "\n".join(
-        name + " := " + show_me(me) for name, me in dbschema.defs.items()
-    )
+    defs_items = dbschema.defs.items()
+    # List comprehension is faster for known-length joins than genexps
+    lines = [f"{name} := {show_me(me)}" for name, me in defs_items]
+    return "\n".join(lines)
 
 
 def show_module_name(name: tuple[str, ...]) -> str:
