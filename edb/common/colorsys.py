@@ -196,20 +196,31 @@ class Color:
 
     @classmethod
     def from_string(cls, value, alpha=1.0):
+        # Fast-path for web colors and transparent
         if not value.startswith('#'):
             if value == 'transparent':
                 return cls(0, 0, 0, 0)
-            else:
-                try:
-                    value = cls.colors[str(value)]
-                except KeyError:
-                    raise ValueError('Unknown color name')
+            # Avoid dict lookup and exception catching by using .get for colors
+            hex_value = cls.colors.get(value)
+            if hex_value is None:
+                raise ValueError('Unknown color name')
+            value = hex_value
+
         value = value[1:]
+        length = len(value)
         try:
-            if len(value) == 3:
-                r, g, b = [int(x * 2, 16) for x in value]
-            elif len(value) == 6:
-                r, g, b = [int(value[i:i + 2], 16) for i in range(0, 6, 2)]
+            if length == 3:
+                # Avoid list comprehension and multiplication for repeated digit
+                # Use int twice with string repetition for better perf
+                r = int(value[0] * 2, 16)
+                g = int(value[1] * 2, 16)
+                b = int(value[2] * 2, 16)
+            elif length == 6:
+                # Use direct integer parsing for hex string
+                v_int = int(value, 16)
+                r = (v_int >> 16) & 0xFF
+                g = (v_int >> 8) & 0xFF
+                b = v_int & 0xFF
             else:
                 raise ValueError
         except ValueError:
