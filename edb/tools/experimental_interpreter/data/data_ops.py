@@ -96,7 +96,7 @@ class CompositeTp:
 
 
 def ArrTp(tp: Tp):
-    return CompositeTp(CompositeTpKind.Array, [tp], [])
+    return CompositeTp(CompositeTpKind.Array, (tp,), [])
 
 
 def UnnamedTupleTp(tps: list[Tp]):
@@ -870,9 +870,7 @@ class RTVal(NamedTuple):
 @dataclass
 class TcCtx:
     schema: DBSchema
-    current_module: tuple[
-        str, ...
-    ]  # current module name, TODO: nested modules
+    current_module: tuple[str, ...]  # current module name, TODO: nested modules
     varctx: dict[str, ResultTp]
 
 
