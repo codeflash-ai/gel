@@ -713,7 +713,7 @@ def val_eq(v1: e.Val, v2: e.Val) -> bool:
             if len(v1) != len(v2):
                 return False
             else:
-                return all(val_eq(v1[i], v2[i]) for i in range(len(v1)))
+                return all(val_eq(v1[i], v2[i]) for v1[i], v2[i] in zip(v1, v2))
         case e.NamedTupleVal(v1), e.NamedTupleVal(v2):
             if len(v1) != len(v2) or v1.keys() != v2.keys():
                 return False
