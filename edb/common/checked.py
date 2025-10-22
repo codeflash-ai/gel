@@ -57,15 +57,16 @@ class ParametricContainer:
         assert self.types is not None, f'missing parameters in {type(self)}'
         cls: type[ParametricContainer] = self.__class__
         container = getattr(self, "_container", ())
-        if cls.__name__.endswith("]"):
+        cls_name = cls.__name__
+        if cls_name.endswith("]"):
             # Parametrized type.
-            cls = cls.__bases__[0]
+            types = self.types
+            args = types[0] if len(types) == 1 else types
+            restore = cls.__restore__
+            return restore, (args, container)
         else:
             # A subclass of a parametrized type.
             return cls, (container,)
-
-        args = self.types[0] if len(self.types) == 1 else self.types
-        return cls.__restore__, (args, container)
 
     @classmethod
     def __restore__(
