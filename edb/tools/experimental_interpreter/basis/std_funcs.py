@@ -14,6 +14,8 @@ from ..data.data_ops import ArrVal, BoolVal, IntVal, Val, UnnamedTupleVal
 from .errors import FunCallErr
 from .. import interpreter_logging
 
+_SCALARTP_STD_DATETIME = e.ScalarTp(e.QualifiedName(["std", "datetime"]))
+
 
 def val_is_true(v: Val) -> bool:
     match v:
@@ -154,13 +156,16 @@ def std_assert_exists(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
 def std_datetime_current(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
     match arg:
         case []:
-            current_datetime = datetime.now()
-            val = current_datetime.strftime("%Y-%m-%dT%H:%M:%S%z")
-            return [
-                e.ScalarVal(
-                    e.ScalarTp(e.QualifiedName(["std", "datetime"])), val
-                )
-            ]
+            # Avoid repeated attribute lookups for high-throughput performance
+            now = datetime.now
+            strftime = "%Y-%m-%dT%H:%M:%S%z"
+            ScalarVal = e.ScalarVal
+            scalartp = _SCALARTP_STD_DATETIME
+
+            current_datetime = now()
+            val = current_datetime.strftime(strftime)
+            # Use locally cached ScalarTp and ScalarVal class
+            return [ScalarVal(scalartp, val)]
     raise FunCallErr()
 
 
@@ -238,10 +243,8 @@ def cal_to_local_datetime_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
             )
             return [
                 e.ScalarVal(
-                    e.ScalarTp(e.QualifiedName(
-                        ["std::cal", "local_datetime"]
-                    )),
-                    s
+                    e.ScalarTp(e.QualifiedName(["std::cal", "local_datetime"])),
+                    s,
                 )
             ]
     raise FunCallErr()
@@ -276,11 +279,7 @@ def std_contains_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
 def std_re_test_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
     match arg:
         case [
-            [
-                e.ScalarVal(
-                    e.ScalarTp(e.QualifiedName(["std", "str"])), pattern
-                )
-            ],
+            [e.ScalarVal(e.ScalarTp(e.QualifiedName(["std", "str"])), pattern)],
             [e.ScalarVal(e.ScalarTp(e.QualifiedName(["std", "str"])), string)],
         ]:
             return [e.BoolVal(bool(re.search(pattern, string)))]
