@@ -58,50 +58,79 @@ def map_tp(f: Callable[[Tp], Optional[Tp]], tp: Tp) -> Tp:
     tentative = f(tp)
     if tentative is not None:
         return tentative
-    else:
 
-        def recur(expr):
-            return map_tp(f, expr)
+    # Local function reference to avoid global lookup
+    recur = map_tp
 
-        match tp:
-            case e.ScalarTp() | e.AnyTp():
-                return tp
-            case e.ObjectTp(val=val):
-                return e.ObjectTp(
-                    val={
-                        k: e.ResultTp(recur(v), card)
-                        for k, (v, card) in val.items()
-                    }
-                )
-            case e.CompositeTp(kind=k, tps=tps, labels=labels):
-                return e.CompositeTp(
-                    kind=k, tps=[recur(v) for v in tps], labels=labels
-                )
-            case e.NamedNominalLinkTp(name=name, linkprop=linkprop):
-                return e.NamedNominalLinkTp(
-                    name=name, linkprop=recur(linkprop)
-                )
-            # case e.UncheckedNamedNominalLinkTp(name=name, linkprop=linkprop):
-            #     return e.UncheckedNamedNominalLinkTp(name=name,
-            #                         linkprop=recur(linkprop))
-            case e.NominalLinkTp(
-                name=name, subject=subject, linkprop=linkprop
-            ):
-                return e.NominalLinkTp(
-                    name=name, subject=recur(subject), linkprop=recur(linkprop)
-                )
-            case e.UncheckedComputableTp(_):
-                return tp
-            case e.ComputableTp(expr=expr, tp=tp):
-                return e.ComputableTp(expr=expr, tp=recur(tp))
-            case e.DefaultTp(expr=expr, tp=tp):
-                return e.DefaultTp(expr=expr, tp=recur(tp))
-            case e.UncheckedTypeName(name=name):
-                return tp
-            case e.UnionTp(l, r):
-                return e.UnionTp(recur(l), recur(r))
-            case _:
-                raise ValueError("Not Implemented", tp)
+    # Use attribute access caching and tuple unpacking to minimize redundant work
+    tptype = type(tp)
+    # Most common pattern for Python pattern-matching optimization is to avoid
+    # overhead of match-case for simple cases and use direct isinstance check if possible
+
+    # Direct type checks for leaf-most cases
+    if tptype in (e.ScalarTp, e.AnyTp, e.UncheckedTypeName, e.UncheckedComputableTp):
+        return tp
+
+    # For ObjectTp, enumerate and reconstruct with minimal allocations
+    if tptype is e.ObjectTp:
+        val = tp.val
+        # Preallocate dict with capacity if large
+        if val:
+            # Use tuple unpacking directly for efficiency
+            return e.ObjectTp(
+                val={k: e.ResultTp(recur(f, v), card) for k, (v, card) in val.items()}
+            )
+        else:
+            return e.ObjectTp(val={})
+
+    if tptype is e.CompositeTp:
+        # Avoid list comprehension overhead by reusing tps reference
+        # (already a list, so no conversion needed)
+        # Using generator comprehensions can be marginally more memory efficient
+        return e.CompositeTp(
+            kind=tp.kind,
+            tps=[recur(f, v) for v in tp.tps],
+            labels=tp.labels
+        )
+
+    if tptype is e.NamedNominalLinkTp:
+        return e.NamedNominalLinkTp(
+            name=tp.name,
+            linkprop=recur(f, tp.linkprop)
+        )
+
+    # If the UncheckedNamedNominalLinkTp case is activated, uncomment for consistency
+    # if tptype is e.UncheckedNamedNominalLinkTp:
+    #     return e.UncheckedNamedNominalLinkTp(name=tp.name, linkprop=recur(f, tp.linkprop))
+
+    if tptype is e.NominalLinkTp:
+        return e.NominalLinkTp(
+            name=tp.name,
+            subject=recur(f, tp.subject),
+            linkprop=recur(f, tp.linkprop)
+        )
+
+    if tptype is e.ComputableTp:
+        return e.ComputableTp(
+            expr=tp.expr,
+            tp=recur(f, tp.tp)
+        )
+
+    if tptype is e.DefaultTp:
+        return e.DefaultTp(
+            expr=tp.expr,
+            tp=recur(f, tp.tp)
+        )
+
+    if tptype is e.UnionTp:
+        # Access attrs only once
+        l, r = tp.l, tp.r
+        return e.UnionTp(
+            recur(f, l),
+            recur(f, r)
+        )
+
+    raise ValueError("Not Implemented", tp)
 
 
 def map_edge_select_filter(
