@@ -425,13 +425,12 @@ def show_tcctx(tcctx: e.TcCtx) -> str:
 
 
 def show_visibility_marker(maker: e.Marker) -> str:
-    match maker:
-        case e.Visible():
-            return "v"
-        case e.Invisible():
-            return "i"
-        case _:
-            raise ValueError('Unimplemented', maker)
+    if type(maker) is e.Visible:
+        return "v"
+    elif type(maker) is e.Invisible:
+        return "i"
+    else:
+        raise ValueError('Unimplemented', maker)
 
 
 def show_val(val: e.Val | e.ObjectVal | e.MultiSetVal) -> str:
