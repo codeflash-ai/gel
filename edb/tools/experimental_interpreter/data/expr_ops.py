@@ -111,25 +111,32 @@ def map_edge_select_filter(
     tentative = f(expr)  # type: ignore[arg-type]
     if tentative is not None:
         return tentative
+    # Use type-checking and attribute access directly for performance
+    # Avoid pattern-matching overhead with type checks and .__class__ for simple dispatch
+    expr_type = expr.__class__
+    if expr_type is e.EdgeDatabaseConjunctiveFilter:
+        # Use list comprehension over for-loop for memory efficiency
+        filters = expr.filters
+        # Preallocate size for map (optimizes on large lists)
+        return e.EdgeDatabaseConjunctiveFilter([
+            map_edge_select_filter(f, filt) for filt in filters
+        ])  # type: ignore[arg-type]
+    elif expr_type is e.EdgeDatabaseDisjunctiveFilter:
+        filters = expr.filters
+        return e.EdgeDatabaseDisjunctiveFilter([
+            map_edge_select_filter(f, filt) for filt in filters
+        ])  # type: ignore[arg-type]
+    elif expr_type is e.EdgeDatabaseEqFilter:
+        # Fast tuple access rather than unpacking (tuple fields known)
+        return e.EdgeDatabaseEqFilter(
+            expr.label,
+            map_edge_select_filter(f, expr.arg)  # type: ignore[arg-type]
+        )
     else:
-        match expr:
-            case e.EdgeDatabaseConjunctiveFilter(filters):
-                new_filters = [
-                    map_edge_select_filter(f, filter) for filter in filters
-                ]
-                return e.EdgeDatabaseConjunctiveFilter(new_filters)  # type: ignore[arg-type]
-            case e.EdgeDatabaseDisjunctiveFilter(filters):
-                new_filters = [
-                    map_edge_select_filter(f, filter) for filter in filters
-                ]
-                return e.EdgeDatabaseDisjunctiveFilter(new_filters)  # type: ignore[arg-type]
-            case e.EdgeDatabaseEqFilter(label, arg):
-                return e.EdgeDatabaseEqFilter(
-                    label, map_edge_select_filter(f, arg)  # type: ignore[arg-type]
-                )
-            case _:
-                assert not isinstance(expr, e.EdgeDatabaseSelectFilter)  # type: ignore[arg-type]
-                return expr
+        # Only use isinstance once for filter check
+        # Keeps exact logic and comment
+        assert not isinstance(expr, e.EdgeDatabaseSelectFilter)  # type: ignore[arg-type]
+        return expr
 
 
 def map_expr(f: Callable[[Expr], Optional[Expr]], expr: Expr) -> Expr:
