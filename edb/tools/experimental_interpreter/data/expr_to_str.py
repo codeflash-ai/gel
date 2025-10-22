@@ -113,17 +113,22 @@ def show_label(lbl: e.Label) -> str:
 
 
 def show_scalar_val(val: e.ScalarVal) -> str:
-    tp = val.tp
+    # Inline tp and v access, and avoid extra attribute lookup
+    tp_name = val.tp.name
     v = val.val
-    match tp.name:
-        case e.QualifiedName(["std", "str"]):
-            return '"' + v + '"'
-        case e.QualifiedName(["std", "int64"]):
-            return str(v)
-        case e.QualifiedName(["std", "bool"]):
-            return str(v)
-        case _:
-            return show_qname(tp.name) + "(" + str(v) + ")"
+
+    # Fast path for the 3 common std types: str, int64, bool
+    # Avoid constructing QualifiedName for each match,
+    # Instead, compare with tp_name.names directly, which is a tuple/list
+    names = tp_name.names
+    if names == ["std", "str"]:
+        return '"' + v + '"'
+    elif names == ["std", "int64"] or names == ["std", "bool"]:
+        # For int64 and bool, original code stringifies both via str(v)
+        return str(v)
+    else:
+        # Only fallback uses slower show_qname
+        return show_qname(tp_name) + "(" + str(v) + ")"
 
 
 def show_edge_database_select_filter(
@@ -425,55 +430,59 @@ def show_tcctx(tcctx: e.TcCtx) -> str:
 
 
 def show_visibility_marker(maker: e.Marker) -> str:
-    match maker:
-        case e.Visible():
-            return "v"
-        case e.Invisible():
-            return "i"
-        case _:
-            raise ValueError('Unimplemented', maker)
+    # Fast path: use isinstance for known classes, avoids pattern-matching overhead
+    if isinstance(maker, e.Visible):
+        return "v"
+    elif isinstance(maker, e.Invisible):
+        return "i"
+    else:
+        raise ValueError('Unimplemented', maker)
 
 
 def show_val(val: e.Val | e.ObjectVal | e.MultiSetVal) -> str:
-    match val:
-        case e.ScalarVal(_, _):
-            return show_scalar_val(val)
-        case e.ObjectVal(val=elems):
-            return (
-                "{"
-                + ", ".join(
-                    show_label(lbl)
-                    + f' ({show_visibility_marker(m)}): {show_multiset_val(el)}'
-                    for (lbl, (m, el)) in elems.items()
-                )
-                + "}"
+    # Refactor: use guard clauses for most common cases 
+    # Acceptable to use isinstance (very fast in CPython, continues to be readable)
+    # It's measurably faster for most cases, and eliminates pattern-matching overhead
+    if isinstance(val, e.ScalarVal):
+        return show_scalar_val(val)
+    elif isinstance(val, e.ObjectVal):
+        # Get local reference to elems dict for efficiency
+        elems = val.val
+        # Avoid repetitive attribute lookups and function calls inside join
+        parts = []
+        for lbl, (m, el) in elems.items():
+            parts.append(
+                show_label(lbl)
+                + f' ({show_visibility_marker(m)}): {show_multiset_val(el)}'
             )
-        case e.RefVal(refid=id, val=v):
-            return f"ref({id})" + show_val(v)
-        case e.UnnamedTupleVal(val=elems):
-            return "(" + ", ".join(show_val(el) for el in elems) + ")"
-        case e.NamedTupleVal(val=elems):
-            return (
-                "("
-                + ", ".join(
-                    f'{lbl} := {show_val(el)}' for lbl, el in elems.items()
-                )
-                + ")"
-            )
-        case e.ArrVal(val=arr):
-            return "[" + ", ".join(show_val(el) for el in arr) + "]"
-        case _:
-            raise ValueError('Unimplemented', val)
+        return "{" + ", ".join(parts) + "}"
+    elif isinstance(val, e.RefVal):
+        # Inline formatting
+        return f"ref({val.refid})" + show_val(val.val)
+    elif isinstance(val, e.UnnamedTupleVal):
+        # elems is a sequence
+        return "(" + ", ".join(map(show_val, val.val)) + ")"
+    elif isinstance(val, e.NamedTupleVal):
+        # elems is a dict
+        parts = []
+        for lbl, el in val.val.items():
+            parts.append(f'{lbl} := {show_val(el)}')
+        return "(" + ", ".join(parts) + ")"
+    elif isinstance(val, e.ArrVal):
+        # Map with show_val for all items
+        return "[" + ", ".join(map(show_val, val.val)) + "]"
+    else:
+        raise ValueError('Unimplemented', val)
 
 
 def show_multiset_val(val: e.MultiSetVal) -> str:
-    match val:
-        case e.ResultMultiSetVal(_vals=arr):
-            return (
-                "(multiset val){" + ", ".join(show_val(el) for el in arr) + "}"
-            )
-        case _:
-            raise ValueError('Unimplemented', val)
+    # Use isinstance for fast dispatch
+    if isinstance(val, e.ResultMultiSetVal):
+        return (
+            "(multiset val){" + ", ".join(map(show_val, val._vals)) + "}"
+        )
+    else:
+        raise ValueError('Unimplemented', val)
 
 
 def show_ctx(ctx: e.TcCtx) -> str:
