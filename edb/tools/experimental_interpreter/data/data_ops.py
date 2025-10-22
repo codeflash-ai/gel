@@ -11,6 +11,8 @@ from dataclasses import dataclass
 
 from enum import Enum
 
+_INT_TP = None
+
 
 # LABELS
 
@@ -384,7 +386,12 @@ class ScalarVal:
 
 
 def IntVal(val: int):
-    return ScalarVal(IntTp(), val)
+    global _INT_TP
+    if _INT_TP is None:
+        from edb.tools.experimental_interpreter.data.data_ops import IntTp
+
+        _INT_TP = IntTp()
+    return ScalarVal(_INT_TP, val)
 
 
 def StrVal(val: str):
@@ -870,9 +877,7 @@ class RTVal(NamedTuple):
 @dataclass
 class TcCtx:
     schema: DBSchema
-    current_module: tuple[
-        str, ...
-    ]  # current module name, TODO: nested modules
+    current_module: tuple[str, ...]  # current module name, TODO: nested modules
     varctx: dict[str, ResultTp]
 
 
