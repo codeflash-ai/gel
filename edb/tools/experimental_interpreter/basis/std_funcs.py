@@ -165,7 +165,7 @@ def std_datetime_current(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
 
 
 def str_split(s, delimiter):
-    return [part for part in s.split(delimiter)]
+    return s.split(delimiter)
 
 
 def str_split_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
@@ -238,10 +238,8 @@ def cal_to_local_datetime_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
             )
             return [
                 e.ScalarVal(
-                    e.ScalarTp(e.QualifiedName(
-                        ["std::cal", "local_datetime"]
-                    )),
-                    s
+                    e.ScalarTp(e.QualifiedName(["std::cal", "local_datetime"])),
+                    s,
                 )
             ]
     raise FunCallErr()
@@ -276,11 +274,7 @@ def std_contains_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
 def std_re_test_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
     match arg:
         case [
-            [
-                e.ScalarVal(
-                    e.ScalarTp(e.QualifiedName(["std", "str"])), pattern
-                )
-            ],
+            [e.ScalarVal(e.ScalarTp(e.QualifiedName(["std", "str"])), pattern)],
             [e.ScalarVal(e.ScalarTp(e.QualifiedName(["std", "str"])), string)],
         ]:
             return [e.BoolVal(bool(re.search(pattern, string)))]
