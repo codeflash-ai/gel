@@ -201,7 +201,7 @@ class Color:
                 return cls(0, 0, 0, 0)
             else:
                 try:
-                    value = cls.colors[str(value)]
+                    value = cls.colors[value]
                 except KeyError:
                     raise ValueError('Unknown color name')
         value = value[1:]
@@ -218,11 +218,17 @@ class Color:
 
     @classmethod
     def from_hls(cls, h, l, s, alpha=1.0):  # NoQA: E741
-        return cls(*(int(c * 255) for c in hls_to_rgb(h, l, s)), a=alpha)
+        # Optimized: avoid generator and tuple unpacking overhead.
+        r, g, b = hls_to_rgb(h, l, s)
+        r = int(r * 255)
+        g = int(g * 255)
+        b = int(b * 255)
+        return cls(r, g, b, a=alpha)
 
     def rgb_channels(self, *, as_floats=False):
         if as_floats:
-            return (self.r / 255.0, self.g / 255.0, self.b / 255.0)
+            div = 1 / 255.0
+            return (self.r * div, self.g * div, self.b * div)
         else:
             return (self.r, self.g, self.b)
 
