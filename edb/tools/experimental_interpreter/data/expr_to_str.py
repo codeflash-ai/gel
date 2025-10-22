@@ -99,7 +99,8 @@ def show_func_tps(tp: e.FunArgRetType) -> str:
 
 
 def show_result_tp(tp: e.ResultTp) -> str:
-    return show_tp(tp.tp) + show_cmmode(tp.mode)
+    # Slight micro-optimization: use f-string to avoid implicit __add__ chain
+    return f"{show_tp(tp.tp)}{show_cmmode(tp.mode)}"
 
 
 def show_label(lbl: e.Label) -> str:
@@ -397,30 +398,34 @@ def show_module_name(name: tuple[str, ...]) -> str:
 
 
 def show_schema(dbschema: e.DBSchema) -> str:
+    # Precompute join-parts in list comprehensions to avoid repeated '+'
+    checked = [
+        f"{show_module_name(name)} := {{ {show_module(module)} }} "
+        for name, module in dbschema.modules.items()
+    ]
+    unchecked = [
+        f"{show_module_name(name)} := {{ {show_module(module)} }} "
+        for name, module in dbschema.unchecked_modules.items()
+    ]
+    # Use f-string and join directly
     return (
-        "Checked Modules:"
-        + "\n".join(
-            show_module_name(name) + " := { " + show_module(module) + " } "
-            for name, module in dbschema.modules.items()
-        )
-        + "\nUnchecked Modules:\n"
-        + "\n".join(
-            show_module_name(name) + " := { " + show_module(module) + " } "
-            for name, module in dbschema.unchecked_modules.items()
-        )
+        "Checked Modules:" +
+        ("\n".join(checked)) +
+        "\nUnchecked Modules:\n" +
+        ("\n".join(unchecked))
     )
 
 
 def show_tcctx(tcctx: e.TcCtx) -> str:
+    # Precompute the lines for varctx output in a list first
+    varctx_parts = [
+        f"{name} := {show_result_tp(r_tp)}"
+        for name, r_tp in tcctx.varctx.items()
+    ]
+    # Use f-string and join directly
     return (
-        show_schema(tcctx.schema)
-        + "\n"
-        + (
-            "\n".join(
-                name + " := " + show_result_tp(r_tp)
-                for name, r_tp in tcctx.varctx.items()
-            )
-        )
+        f"{show_schema(tcctx.schema)}\n"
+        f"{'\n'.join(varctx_parts)}"
     )
 
 
