@@ -7,13 +7,14 @@ default_open_scopes = [("std",)]
 def resolve_module_in_schema(
     schema: e.DBSchema, name: tuple[str, ...]
 ) -> e.DBModule:
-    if name in schema.unchecked_modules:
+    m = schema.unchecked_modules.get(name)
+    if m is not None:
         assert name not in schema.modules
-        return schema.unchecked_modules[name]
-    elif name in schema.modules:
-        return schema.modules[name]
-    else:
-        raise ValueError(f"Module {name} not found")
+        return m
+    m = schema.modules.get(name)
+    if m is not None:
+        return m
+    raise ValueError(f"Module {name} not found")
 
 
 def try_resolve_module_entity(
@@ -101,17 +102,18 @@ def try_resolve_simple_name(
     name = unq_name.name
 
     if isinstance(ctx, e.TcCtx):
+        # Direct access to current_module saves unnecessary getitem on schema below
         current_module = resolve_module_in_schema(
             ctx.schema, ctx.current_module
         )
         if name in current_module.defs:
+            # Found in current module
             return e.QualifiedName([*ctx.current_module, name])
-
-    if isinstance(ctx, e.TcCtx):
         schema = ctx.schema
     else:
         schema = ctx
 
+    # Only iterate over default_open_scopes if not found above
     for default_scope in default_open_scopes:
         std_module = resolve_module_in_schema(schema, default_scope)
         if name in std_module.defs:
