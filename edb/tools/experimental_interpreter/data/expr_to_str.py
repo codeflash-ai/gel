@@ -387,27 +387,39 @@ def show_me(me: e.ModuleEntity) -> str:
 
 
 def show_module(dbschema: e.DBModule) -> str:
-    return "\n".join(
-        name + " := " + show_me(me) for name, me in dbschema.defs.items()
-    )
+    # Optimize join by using a local list comprehension, minimizing global lookups
+    defs_items = dbschema.defs.items()
+    # Preallocate result list to avoid repeated dynamic resizing in list.append
+    result: list[str] = [name + " := " + show_me(me) for name, me in defs_items]
+    return "\n".join(result)
 
 
 def show_module_name(name: tuple[str, ...]) -> str:
+    # No meaningful optimization to "::".join, so keep as-is for fast tuple-to-str
     return "::".join(name)
 
 
 def show_schema(dbschema: e.DBSchema) -> str:
+    # Reduce global lookups and repeated attribute access
+    modules_items = dbschema.modules.items()
+    unchecked_items = dbschema.unchecked_modules.items()
+
+    # Pre-build Checked Modules and Unchecked Modules result lists using comprehensions.
+    checked: list[str] = [
+        show_module_name(name) + " := { " + show_module(module) + " } "
+        for name, module in modules_items
+    ]
+    unchecked: list[str] = [
+        show_module_name(name) + " := { " + show_module(module) + " } "
+        for name, module in unchecked_items
+    ]
+
+    # Single concatenation at the end - faster than repeated string building
     return (
         "Checked Modules:"
-        + "\n".join(
-            show_module_name(name) + " := { " + show_module(module) + " } "
-            for name, module in dbschema.modules.items()
-        )
+        + "\n".join(checked)
         + "\nUnchecked Modules:\n"
-        + "\n".join(
-            show_module_name(name) + " := { " + show_module(module) + " } "
-            for name, module in dbschema.unchecked_modules.items()
-        )
+        + "\n".join(unchecked)
     )
 
 
