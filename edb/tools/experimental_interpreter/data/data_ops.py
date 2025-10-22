@@ -384,7 +384,9 @@ class ScalarVal:
 
 
 def IntVal(val: int):
-    return ScalarVal(IntTp(), val)
+    if not hasattr(IntVal, "_int_tp"):
+        IntVal._int_tp = IntTp()
+    return ScalarVal(IntVal._int_tp, val)
 
 
 def StrVal(val: str):
@@ -870,9 +872,7 @@ class RTVal(NamedTuple):
 @dataclass
 class TcCtx:
     schema: DBSchema
-    current_module: tuple[
-        str, ...
-    ]  # current module name, TODO: nested modules
+    current_module: tuple[str, ...]  # current module name, TODO: nested modules
     varctx: dict[str, ResultTp]
 
 
