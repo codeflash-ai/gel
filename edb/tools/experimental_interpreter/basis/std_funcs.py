@@ -111,28 +111,55 @@ def std_assert_distinct(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
         case [vset, pmsg]:
             msg = None
 
-            match pmsg:
-                case [e.ScalarVal(_, errmsg)]:
-                    msg = errmsg
-                case []:
+            # Avoid match for pmsg; just check and extract fast
+            if pmsg:
+                # Check for ScalarVal directly
+                pv = pmsg[0]
+                if (
+                    isinstance(pv, e.ScalarVal)
+                    and (
+                        # For performance, check for two members before unpack
+                        len(pmsg) == 1
+                    )
+                ):
+                    msg = pv.value
+                else:
                     msg = "Expected distinct values, got duplicates."
-
-            if all(isinstance(v, e.RefVal) for v in vset):
-                ids = {v.refid: v for v in vset}.values()  # type: ignore
-                if len(ids) != len(vset):
-                    raise ValueError(msg)
-                else:
-                    return vset
-            elif all(
-                isinstance(v, e.ArrVal | e.UnnamedTupleVal | e.NamedTupleVal)
-                for v in vset
-            ):
-                if len(set(vset)) != len(vset):
-                    raise ValueError(msg)
-                else:
-                    return vset
             else:
-                raise ValueError("Not implemented: assert_distinct")
+                msg = "Expected distinct values, got duplicates."
+
+            # Fast all() check: short-circuit first RefVal non-match
+            vlen = len(vset)
+            if vlen == 0:
+                return vset  # nothing to assert about
+            first_type = type(vset[0])
+
+            # Fast path for RefVal sequence
+            if first_type is e.RefVal and all(isinstance(v, e.RefVal) for v in vset[1:]):
+                # Use a set for refids instead of constructing map+values()
+                seen_refids = set()
+                for v in vset:
+                    refid = v.refid  # type: ignore
+                    if refid in seen_refids:
+                        raise ValueError(msg)
+                    seen_refids.add(refid)
+                return vset
+
+            # Fast path for ArrVal|UnnamedTupleVal|NamedTupleVal: type-check with set
+            allowed_types = (e.ArrVal, e.UnnamedTupleVal, e.NamedTupleVal)
+            if first_type in allowed_types and all(isinstance(v, allowed_types) for v in vset[1:]):
+                # Only need to hashable-check/set if elements are not identical
+                if vlen <= 1:
+                    return vset
+                seen = set()
+                for v in vset:
+                    # set.add returns None, but we can check for membership first for speed
+                    if v in seen:
+                        raise ValueError(msg)
+                    seen.add(v)
+                return vset
+
+            raise ValueError("Not implemented: assert_distinct")
     raise FunCallErr()
 
 
