@@ -14,6 +14,8 @@ from ..data.data_ops import ArrVal, BoolVal, IntVal, Val, UnnamedTupleVal
 from .errors import FunCallErr
 from .. import interpreter_logging
 
+_SCALAR_TYPE = e.ScalarTp(e.QualifiedName(["std", "float64"]))
+
 
 def val_is_true(v: Val) -> bool:
     match v:
@@ -220,9 +222,10 @@ def to_json_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
 def random_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
     match arg:
         case []:
+            # Avoid repeated construction of the ScalarTp and QualifiedName
             return [
                 e.ScalarVal(
-                    e.ScalarTp(e.QualifiedName(["std", "float64"])),
+                    _SCALAR_TYPE,
                     random.random(),
                 )
             ]
@@ -238,10 +241,8 @@ def cal_to_local_datetime_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
             )
             return [
                 e.ScalarVal(
-                    e.ScalarTp(e.QualifiedName(
-                        ["std::cal", "local_datetime"]
-                    )),
-                    s
+                    e.ScalarTp(e.QualifiedName(["std::cal", "local_datetime"])),
+                    s,
                 )
             ]
     raise FunCallErr()
@@ -276,11 +277,7 @@ def std_contains_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
 def std_re_test_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
     match arg:
         case [
-            [
-                e.ScalarVal(
-                    e.ScalarTp(e.QualifiedName(["std", "str"])), pattern
-                )
-            ],
+            [e.ScalarVal(e.ScalarTp(e.QualifiedName(["std", "str"])), pattern)],
             [e.ScalarVal(e.ScalarTp(e.QualifiedName(["std", "str"])), string)],
         ]:
             return [e.BoolVal(bool(re.search(pattern, string)))]
