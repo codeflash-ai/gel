@@ -16,12 +16,12 @@ from .. import interpreter_logging
 
 
 def val_is_true(v: Val) -> bool:
-    match v:
-        case e.ScalarVal(_, v):
-            assert isinstance(v, bool)
-            return v
-        case _:
-            raise ValueError("not a boolean")
+    if isinstance(v, e.ScalarVal):
+        val = v[1]
+        assert isinstance(val, bool)
+        return val
+    else:
+        raise ValueError("not a boolean")
 
 
 def std_all_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
@@ -32,7 +32,7 @@ def std_all_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
 
 
 def std_any_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
-
+    # No optimization needed; any(..) already short-circuits
     match arg:
         case [l1]:
             return [BoolVal(any(val_is_true(v) for v in l1))]
@@ -238,10 +238,8 @@ def cal_to_local_datetime_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
             )
             return [
                 e.ScalarVal(
-                    e.ScalarTp(e.QualifiedName(
-                        ["std::cal", "local_datetime"]
-                    )),
-                    s
+                    e.ScalarTp(e.QualifiedName(["std::cal", "local_datetime"])),
+                    s,
                 )
             ]
     raise FunCallErr()
@@ -276,11 +274,7 @@ def std_contains_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
 def std_re_test_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
     match arg:
         case [
-            [
-                e.ScalarVal(
-                    e.ScalarTp(e.QualifiedName(["std", "str"])), pattern
-                )
-            ],
+            [e.ScalarVal(e.ScalarTp(e.QualifiedName(["std", "str"])), pattern)],
             [e.ScalarVal(e.ScalarTp(e.QualifiedName(["std", "str"])), string)],
         ]:
             return [e.BoolVal(bool(re.search(pattern, string)))]
