@@ -488,11 +488,10 @@ def operate_under_binding(e: BindingExpr, op: Callable[[Expr], Expr]):
 
 
 def val_is_primitive(rt: Val) -> bool:
-    match rt:
-        case e.ScalarVal(_):
-            return True
-        case RefVal(_):
-            return False
+    if type(rt) is e.ScalarVal:
+        return True
+    if type(rt) is RefVal:
+        return False
     raise ValueError("not implemented")
 
 
