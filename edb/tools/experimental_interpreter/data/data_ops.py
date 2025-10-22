@@ -392,7 +392,9 @@ def StrVal(val: str):
 
 
 def BoolVal(val: bool):
-    return ScalarVal(BoolTp(), val)
+    if not hasattr(BoolVal, "_bool_tp"):
+        BoolVal._bool_tp = BoolTp()
+    return ScalarVal(BoolVal._bool_tp, val)
 
 
 EdgeID = int
@@ -870,9 +872,7 @@ class RTVal(NamedTuple):
 @dataclass
 class TcCtx:
     schema: DBSchema
-    current_module: tuple[
-        str, ...
-    ]  # current module name, TODO: nested modules
+    current_module: tuple[str, ...]  # current module name, TODO: nested modules
     varctx: dict[str, ResultTp]
 
 
