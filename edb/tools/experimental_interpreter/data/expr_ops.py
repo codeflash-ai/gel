@@ -504,11 +504,11 @@ def val_is_ref_val(rt: Val) -> bool:
 
 
 def remove_unless_link_props(dic: ObjectVal) -> ObjectVal:
-    return ObjectVal(
-        val={
-            k: v for (k, v) in dic.val.items() if isinstance(k, LinkPropLabel)
-        }
-    )
+    result = {}
+    for k, v in dic.val.items():
+        if type(k) is LinkPropLabel:
+            result[k] = v
+    return ObjectVal(val=result)
 
 
 def conversion_error():
