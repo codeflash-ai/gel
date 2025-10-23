@@ -713,12 +713,12 @@ def val_eq(v1: e.Val, v2: e.Val) -> bool:
             if len(v1) != len(v2):
                 return False
             else:
-                return all(val_eq(v1[i], v2[i]) for i in range(len(v1)))
+                return all(map(val_eq, v1, v2))
         case e.NamedTupleVal(v1), e.NamedTupleVal(v2):
             if len(v1) != len(v2) or v1.keys() != v2.keys():
                 return False
             else:
-                return all(val_eq(v1[k], v2[k]) for k in v1.keys())
+                return all(map(val_eq, v1.values(), v2.values()))
         case _:
             if v1.__class__ == v2.__class__:
                 raise ValueError("Not Implemented", v1, v2)
