@@ -632,21 +632,31 @@ def get_path_head(e: Expr) -> e.FreeVarExpr:
 
 
 def get_first_path_component(e: Expr) -> e.Optional[e.Expr]:
-    match e:
-        case FreeVarExpr(_):
-            return None
-        case LinkPropProjExpr(subject=FreeVarExpr(_), linkprop=_):
+    # Fast-path: Check if input is FreeVarExpr; if so, return None immediately
+    if type(e) is FreeVarExpr:
+        return None
+
+    e_type = type(e)
+
+    # Direct type checks are faster than pattern matching for these cases
+    if e_type is LinkPropProjExpr:
+        subj = e.subject
+        if type(subj) is FreeVarExpr:
             return e
-        case ObjectProjExpr(subject=FreeVarExpr(_), label=_):
+    elif e_type is ObjectProjExpr:
+        subj = e.subject
+        if type(subj) is FreeVarExpr:
             return e
-        case BackLinkExpr(subject=FreeVarExpr(_), label=_):
+    elif e_type is BackLinkExpr:
+        subj = e.subject
+        if type(subj) is FreeVarExpr:
             return e
-        case TpIntersectExpr(
-            subject=BackLinkExpr(subject=FreeVarExpr(_), label=_), tp=_
-        ):
+    elif e_type is TpIntersectExpr:
+        subj = e.subject
+        if type(subj) is BackLinkExpr and type(subj.subject) is FreeVarExpr:
             return e
-        case _:
-            raise ValueError("not a path")
+
+    raise ValueError("not a path")
 
 
 def tcctx_add_binding(
