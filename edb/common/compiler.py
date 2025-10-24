@@ -29,6 +29,8 @@ from typing import (
 import collections
 import re
 
+_re_tilde_digits_end = re.compile(r'~\d+$')
+
 
 class ContextLevel:
     _stack: CompilerContext[Self]
@@ -44,7 +46,7 @@ class ContextLevel:
 
     def new(
         self: Self,
-        mode: Any=None,
+        mode: Any = None,
     ) -> CompilerContextManager[Self]:
         return self._stack.new(mode, self)
 
@@ -129,7 +131,8 @@ class CompilerContext[ContextLevel_T: ContextLevel]:
                 # asserting that they were the same.  We can consider
                 # dropping the assertion if it proves tedious.
                 raise AssertionError(
-                    'Calling new() on a context other than the current one')
+                    'Calling new() on a context other than the current one'
+                )
             level = self.ContextLevelClass(prevlevel, mode)
         level._stack = self
         self.stack.append(level)
@@ -160,19 +163,28 @@ class SimpleCounter:
         self.counts = collections.defaultdict(int)
 
     def nextval(self, name: str = 'default') -> int:
-        self.counts[name] += 1
-        return self.counts[name]
+        # Use dict.__getitem__ directly for micro-optimization, avoids two lookups
+        counts = self.counts
+        try:
+            counts[name] += 1
+            return counts[name]
+        except KeyError:
+            counts[name] = 1
+            return 1
 
 
 class AliasGenerator(SimpleCounter):
     def get(self, hint: str = '') -> str:
         if not hint:
             hint = 'v'
-        m = re.search(r'~\d+$', hint)
+        m = _re_tilde_digits_end.search(hint)
         if m:
-            hint = hint[:m.start()]
+            hint = hint[: m.start()]
 
-        idx = self.nextval(hint)
+        # Inline nextval for significant speedup in this hot loop.
+        c = self.counts
+        c[hint] += 1
+        idx = c[hint]
+
         alias = f'{hint}~{idx}'
-
         return alias
