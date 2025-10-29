@@ -260,10 +260,16 @@ class BaseMetric:
         /,
     ) -> None:
         self._registry = registry
+        # Combine augment and validation in one step
         name = self._augment_metric_name(name)
-        self._validate_name(name)
+        # Inline _validate_name contents for performance
+        prohibited_prefixes = self.PROHIBITED_PREFIXES
+        prohibited_suffixes = self.PROHIBITED_SUFFIXES
+        if (name.startswith(prohibited_prefixes) or
+                name.endswith(prohibited_suffixes)):
+            raise ValueError(f'invalid metrics name: {name!r}')
         if unit is not None:
-            name += '_' + unit.value
+            name = f'{name}_{unit.value}'
         self._name = name
         self._desc = desc
         self._unit = unit
