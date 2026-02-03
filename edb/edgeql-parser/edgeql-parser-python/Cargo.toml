@@ -16,7 +16,7 @@ default = ["python_extension"]
 pyo3 = { workspace = true, optional = true }
 
 edgeql-parser = { path = "..", features = ["serde"] }
-bytes = "1.0.1"
+bytes = "1.11.1"
 num-bigint = "0.4.3"
 bigdecimal = { version = "0.4.5", features = ["string-only"] }
 blake2 = "0.10.4"
